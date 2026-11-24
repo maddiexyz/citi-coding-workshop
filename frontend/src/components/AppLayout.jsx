@@ -12,7 +12,7 @@ import { ROLE_LABELS } from '../auth/permissions';
 /** Main sections; `roles` limits a link to those roles. */
 const NAV_ITEMS = [
   { to: '/projects', label: 'Projects' },
-  { to: '/resources', label: 'Resources' },
+  { to: '/resources', label: 'People' },
 ];
 
 /** Page frame for signed-in pages: top bar with navigation, the user and a sign-out button. */
