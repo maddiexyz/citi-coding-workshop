@@ -25,7 +25,6 @@ from common.permissions import can_delete_deliverables, can_edit_deliverables
 from common.validation import Validator
 
 STATUSES = ("not_started", "in_progress", "done", "cancelled")
-SUMMARY_COLUMNS = "id, title, status, due_date, is_blocked, is_overdue"
 
 
 def validate_deliverable(data: dict, *, creating: bool) -> dict:
@@ -67,12 +66,12 @@ def find_deliverable(deliverable_id: int) -> dict:
 def with_dependencies(deliverable: dict) -> dict:
     """Add the deliverable's predecessors (it depends on) and successors (depend on it)."""
     predecessors = db.fetch_all(
-        f"SELECT {SUMMARY_COLUMNS} FROM deliverable_details WHERE id IN "
+        "SELECT id, title, status, due_date, is_blocked, is_overdue FROM deliverable_details WHERE id IN "
         "(SELECT depends_on_id FROM deliverable_dependencies WHERE deliverable_id = %s) ORDER BY title",
         (deliverable["id"],),
     )
     successors = db.fetch_all(
-        f"SELECT {SUMMARY_COLUMNS} FROM deliverable_details WHERE id IN "
+        "SELECT id, title, status, due_date, is_blocked, is_overdue FROM deliverable_details WHERE id IN "
         "(SELECT deliverable_id FROM deliverable_dependencies WHERE depends_on_id = %s) ORDER BY title",
         (deliverable["id"],),
     )
@@ -83,8 +82,6 @@ def require_edit(request: Request, project: dict) -> None:
     """403 unless the user may create/edit deliverables in this project."""
     if not can_edit_deliverables(request.user, project):
         raise ApiError(403, "forbidden", "You cannot change deliverables in this project")
-
-
 
 
 @require_auth
@@ -126,7 +123,7 @@ def list_deliverables(request: Request) -> dict:
 
 
 @require_auth
-def get_deliverable(request: Request, deliverable_id: str) -> dict:
+def get_deliverable(_request: Request, deliverable_id: str) -> dict:
     """Return one deliverable with its predecessors and successors."""
     return json_response(200, with_dependencies(find_deliverable(parse_id(deliverable_id, "Deliverable id"))))
 
@@ -180,7 +177,7 @@ def delete_deliverable(request: Request, deliverable_id: str) -> dict:
 
 
 @require_auth
-def list_dependencies(request: Request, deliverable_id: str) -> dict:
+def list_dependencies(_request: Request, deliverable_id: str) -> dict:
     """List what a deliverable depends on."""
     deliverable = with_dependencies(find_deliverable(parse_id(deliverable_id, "Deliverable id")))
     return json_response(200, {"items": deliverable["predecessors"]})

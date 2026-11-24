@@ -67,7 +67,6 @@ def duplicate_code_error() -> ApiError:
                     {"code": "This code is already in use"})
 
 
-
 @require_auth
 def list_projects(request: Request) -> dict:
     """List projects, optionally filtered by status and by text in name or code."""
@@ -91,7 +90,7 @@ def list_projects(request: Request) -> dict:
 
 
 @require_auth
-def get_project(request: Request, project_id: str) -> dict:
+def get_project(_request: Request, project_id: str) -> dict:
     """Return one project."""
     return json_response(200, find_project(parse_id(project_id, "Project id")))
 

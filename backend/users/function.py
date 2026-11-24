@@ -12,9 +12,6 @@ from common.auth import require_auth
 from common.http import ApiError, Request, json_response, make_handler, parse_bool
 from common.permissions import ADMIN, PROJECT_MANAGER, ROLES
 
-PUBLIC_COLUMNS = "id, email, full_name, role, is_active"
-
-
 
 @require_auth
 def list_users(request: Request) -> dict:
@@ -27,8 +24,8 @@ def list_users(request: Request) -> dict:
         raise ApiError(400, "validation_error", "Invalid filter", {"role": f"Must be one of: {', '.join(ROLES)}"})
     text = (request.query.get("q") or "").strip()
     items = db.fetch_all(
-        f"""
-        SELECT {PUBLIC_COLUMNS} FROM users
+        """
+        SELECT id, email, full_name, role, is_active FROM users
         WHERE (%(role)s::user_role IS NULL OR role = %(role)s::user_role)
           AND (%(active)s::boolean IS NULL OR is_active = %(active)s)
           AND (%(search)s::text IS NULL OR full_name ILIKE %(search)s OR email ILIKE %(search)s)
