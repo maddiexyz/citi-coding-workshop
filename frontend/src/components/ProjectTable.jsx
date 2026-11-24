@@ -10,6 +10,7 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import useYou from '../auth/useYou';
 import BurnChip from './budget/BurnChip';
+import ForecastEnd from './forecast/ForecastEnd';
 import ProjectActions from './ProjectActions';
 import ProjectStatusChip from './ProjectStatusChip';
 import projectShape from './projectPropTypes';
@@ -31,6 +32,7 @@ export default function ProjectTable({ projects, canChange, canDelete, onDelete 
             <TableCell>Budget</TableCell>
             <TableCell>Start</TableCell>
             <TableCell>End</TableCell>
+            <TableCell>Forecast end</TableCell>
             <TableCell align="right">Actions</TableCell>
           </TableRow>
         </TableHead>
@@ -47,6 +49,7 @@ export default function ProjectTable({ projects, canChange, canDelete, onDelete 
               <TableCell><BurnChip project={project} /></TableCell>
               <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(project.start_date)}</TableCell>
               <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(project.end_date)}</TableCell>
+              <TableCell sx={{ whiteSpace: 'nowrap' }}><ForecastEnd project={project} /></TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                 {canChange(project) && <ProjectActions project={project} canDelete={canDelete(project)} onDelete={onDelete} />}
               </TableCell>

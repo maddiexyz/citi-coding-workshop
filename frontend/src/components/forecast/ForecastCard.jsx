@@ -10,6 +10,7 @@ import Typography from '@mui/material/Typography';
 import projectShape from '../projectPropTypes';
 import { getForecast } from '../../services/forecastApi';
 import { formatDate } from '../../utils/format';
+import SlipChip from './SlipChip';
 
 const CONFIDENCE = {
   high: { label: 'High confidence', color: 'success' },
@@ -29,15 +30,6 @@ function Fact({ label, children }) {
 }
 
 Fact.propTypes = { label: PropTypes.string.isRequired, children: PropTypes.node };
-
-/** The slip against the planned end as a chip: late (red), on time (green), or nothing without an end date. */
-export function SlipChip({ slipDays }) {
-  if (slipDays === null || slipDays === undefined) return null;
-  if (slipDays > 0) return <Chip size="small" color="error" label={`${days(slipDays)} late`} />;
-  return <Chip size="small" color="success" label={slipDays === 0 ? 'On time' : `${days(-slipDays)} early`} />;
-}
-
-SlipChip.propTypes = { slipDays: PropTypes.number };
 
 function Body({ forecast }) {
   const { status, confidence, spi } = forecast;
