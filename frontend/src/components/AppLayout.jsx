@@ -8,9 +8,11 @@ import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
 import useAuth from '../auth/useAuth';
 import { ROLE_LABELS } from '../auth/permissions';
+import homePath from '../auth/homePath';
 
 /** Main sections; `roles` limits a link to those roles. */
 const NAV_ITEMS = [
+  { to: '/my-work', label: 'My work' },
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/projects', label: 'Projects' },
   { to: '/resources', label: 'People' },
@@ -29,7 +31,7 @@ export default function AppLayout({ children }) {
           <Typography
             variant="h6"
             component={RouterLink}
-            to="/dashboard"
+            to={homePath(user)}
             sx={{ color: 'inherit', textDecoration: 'none', mr: { sm: 2 } }}
           >
             ACME Projects

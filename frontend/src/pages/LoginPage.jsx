@@ -7,6 +7,7 @@ import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import homePath from '../auth/homePath';
 import useAuth from '../auth/useAuth';
 
 /** Sign-in form. After signing in, returns the user to the page they wanted. */
@@ -20,8 +21,9 @@ export default function LoginPage() {
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const destination = location.state?.from?.pathname ?? '/dashboard';
-  if (user) return <Navigate to={destination} replace />;
+  const from = location.state?.from;
+  const destination = (signedIn) => (from ? `${from.pathname}${from.search ?? ''}` : homePath(signedIn));
+  if (user) return <Navigate to={destination(user)} replace />;
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -34,8 +36,8 @@ export default function LoginPage() {
     setSubmitting(true);
     setError(null);
     try {
-      await login(email.trim(), password);
-      navigate(destination, { replace: true });
+      const signedIn = await login(email.trim(), password);
+      navigate(destination(signedIn), { replace: true });
     } catch (err) {
       setError(err.message);
       setSubmitting(false);

@@ -4,11 +4,14 @@ import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import RequireAuth from './auth/RequireAuth';
 import AppLayout from './components/AppLayout';
+import homePath from './auth/homePath';
+import useAuth from './auth/useAuth';
 import LoginPage from './pages/LoginPage';
 
 // Each page is its own chunk, loaded when first visited, so the first
 // download stays small (the login page is in the main bundle).
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const MyWorkPage = lazy(() => import('./pages/MyWorkPage'));
 const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage'));
 const ProjectFormPage = lazy(() => import('./pages/ProjectFormPage'));
 const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
@@ -34,11 +37,18 @@ function protectedPage(page) {
   );
 }
 
+/** Unknown paths go to the signed-in user's home page. */
+function Home() {
+  const { user } = useAuth();
+  return <Navigate to={homePath(user)} replace />;
+}
+
 /** Application routes. */
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/my-work" element={protectedPage(<MyWorkPage />)} />
       <Route path="/dashboard" element={protectedPage(<DashboardPage />)} />
       <Route path="/projects" element={protectedPage(<ProjectsPage />)} />
       <Route path="/projects/new" element={protectedPage(<ProjectFormPage />)} />
@@ -47,7 +57,7 @@ export default function App() {
       <Route path="/resources" element={protectedPage(<ResourcesPage />)} />
       <Route path="/resources/:id" element={protectedPage(<ResourceDetailPage />)} />
       <Route path="/users" element={protectedPage(<UsersPage />)} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Home />} />
     </Routes>
   );
 }

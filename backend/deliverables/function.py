@@ -2,7 +2,8 @@
 Deliverables service: deliverables of a project and the dependencies between them.
 
 Routes (served at /api/deliverables; every route needs a Bearer token):
-    GET    /        ?project_id&status&blocked&overdue&due_before&assignee&q -> {"items": [...]}
+    GET    /        ?project_id&status&blocked&overdue&due_soon&due_before&assignee&q -> {"items": [...]}
+                    (due_soon=true: not done or cancelled and due within 7 days, by the database clock)
                     (assignee: a resource id, or "me" for the signed-in user's linked person)
     GET    /{id}                                   -> deliverable + predecessors + successors
     POST   /        deliverable fields + project_id -> 201 deliverable
@@ -122,6 +123,8 @@ def list_deliverables(request: Request) -> dict:
           AND (%(blocked)s::boolean IS NULL OR is_blocked = %(blocked)s)
           AND (%(overdue)s::boolean IS NULL OR is_overdue = %(overdue)s)
           AND (%(due_before)s::date IS NULL OR due_date < %(due_before)s)
+          AND (%(due_soon)s::boolean IS NULL OR (status NOT IN ('done', 'cancelled')
+               AND due_date BETWEEN current_date AND current_date + 7) = %(due_soon)s)
           AND (%(assignee)s::bigint IS NULL OR assignee_resource_id = %(assignee)s)
           AND (%(search)s::text IS NULL OR title ILIKE %(search)s OR description ILIKE %(search)s)
         ORDER BY due_date NULLS LAST, id
@@ -132,6 +135,7 @@ def list_deliverables(request: Request) -> dict:
             "blocked": parse_bool("blocked", query.get("blocked")),
             "overdue": parse_bool("overdue", query.get("overdue")),
             "due_before": due_before,
+            "due_soon": parse_bool("due_soon", query.get("due_soon")),
             "assignee": assignee_filter(request),
             "search": db.like_pattern(text) if text else None,
         },

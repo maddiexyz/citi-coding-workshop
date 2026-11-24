@@ -1,6 +1,8 @@
 """'Mine' filters: owner=me, team_lead=me, assignee=me, resource=me, resolved from the token."""
 
-from conftest import call
+from datetime import timedelta
+
+from conftest import call, db_today
 
 
 def test_projects_owned_and_led_by_me(projects_service, users):
@@ -28,7 +30,7 @@ def test_me_is_the_only_accepted_value(projects_service, allocations_service, us
 
 
 def test_my_deliverables_and_allocations(projects_service, deliverables_service, resources_service,
-                                        allocations_service, users):
+                                         allocations_service, users):
     admin = users["admin"]["token"]
     mine = call(resources_service, "POST", "/", token=admin,
                 body={"full_name": "Me", "user_id": users["team_lead"]["id"]})[1]
@@ -52,3 +54,16 @@ def test_my_deliverables_and_allocations(projects_service, deliverables_service,
     viewer = users["viewer"]["token"]
     assert call(deliverables_service, "GET", "/", token=viewer, query={"assignee": "me"})[1]["items"] == []
     assert call(allocations_service, "GET", "/", token=viewer, query={"resource": "me"})[1]["items"] == []
+
+
+def test_due_soon_uses_the_database_clock(projects_service, deliverables_service, users):
+    token = users["admin"]["token"]
+    project = call(projects_service, "POST", "/", token=token, body={"code": "SOON-1", "name": "Soon"})[1]
+    today = db_today()
+    for title, days, status in (("Today", 0, "not_started"), ("In a week", 7, "in_progress"),
+                                ("Later", 8, "not_started"), ("Done", 1, "done"), ("Late", -1, "not_started")):
+        call(deliverables_service, "POST", "/", token=token, body={
+            "project_id": project["id"], "title": title, "status": status,
+            "due_date": (today + timedelta(days=days)).isoformat()})
+    found = call(deliverables_service, "GET", "/", token=token, query={"due_soon": "true"})[1]["items"]
+    assert sorted(d["title"] for d in found) == ["In a week", "Today"]
