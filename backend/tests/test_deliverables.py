@@ -206,3 +206,29 @@ def test_team_lead_manages_dependencies_only_when_assigned(deliverables_service,
         assert status == expected
         if status == 201:
             call(deliverables_service, "DELETE", f"/{a['id']}/dependencies/{c['id']}", token=users[who]["token"])
+
+
+def test_chain_lists_every_dependency_path_top_down(deliverables_service, users, project):
+    token = users["pm"]["token"]
+    ids = {t: make_deliverable(deliverables_service, token, project["id"], t)["id"]
+           for t in ("Ingest", "Model", "Dashboards", "Docs", "Alone")}
+    for later, earlier in (("Model", "Ingest"), ("Dashboards", "Model"), ("Docs", "Ingest"), ("Dashboards", "Docs")):
+        call(deliverables_service, "POST", f"/{ids[later]}/dependencies", token=token,
+             body={"depends_on_id": ids[earlier]})
+
+    status, body = call(deliverables_service, "GET", "/chain", token=users["viewer"]["token"],
+                        query={"project_id": str(project["id"])})
+    assert status == 200
+    titles = {n["id"]: n["title"] for n in body["nodes"]}
+    rows = [("  " * r["depth"]) + titles[r["id"]] for r in body["rows"]]
+    # Dashboards depends on both Docs and Model, so it appears under each; Alone has no links
+    assert rows == ["Ingest", "  Docs", "    Dashboards", "  Model", "    Dashboards"]
+    assert "Alone" not in titles.values()
+    flags = {n["title"]: n["is_blocked"] for n in body["nodes"]}
+    assert flags == {"Ingest": False, "Docs": True, "Model": True, "Dashboards": True}
+
+
+def test_chain_needs_a_project(deliverables_service, users):
+    token = users["viewer"]["token"]
+    assert call(deliverables_service, "GET", "/chain", token=token)[0] == 400
+    assert call(deliverables_service, "GET", "/chain", token=token, query={"project_id": "999999"})[0] == 404

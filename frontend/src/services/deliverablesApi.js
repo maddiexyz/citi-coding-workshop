@@ -66,3 +66,13 @@ export function addDependency(id, dependsOnId) {
 export function removeDependency(id, dependsOnId) {
   return apiRequest(`/deliverables/${id}/dependencies/${dependsOnId}`, { method: 'DELETE' });
 }
+
+/**
+ * The project's dependency chains: nodes (deliverables) and rows in display
+ * order, each with its depth in the tree.
+ * @param {number} projectId
+ * @returns {Promise<{nodes: Array<Object>, rows: Array<{id: number, depth: number, path: number[]}>}>}
+ */
+export function getChain(projectId) {
+  return apiRequest('/deliverables/chain', { query: { project_id: projectId } });
+}

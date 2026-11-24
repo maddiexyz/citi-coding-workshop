@@ -92,6 +92,17 @@ Branch `feature/v1.1` (from `feature/increment-e`).
 - README *Demo walkthrough*: which account and screen answers each of the
   seven questions.
 
+## 10. Dependency chain view
+- `GET /api/deliverables/chain?project_id=`: the same recursive walk as the
+  cycle check, run downwards from deliverables that others wait on but that
+  depend on nothing. Returns the nodes (with blocked, overdue, assignee) and
+  the rows in display order with their depth.
+- Deliverables tab: *List* / *Chain* toggle. The chain is nested lists
+  (keyboard and screen-reader friendly without a custom tree widget):
+  each deliverable under the one it depends on, an amber edge when blocked
+  and red when overdue, status and assignee, and a button that opens the
+  deliverable. Indentation narrows on mobile.
+
 ## Decisions made on your behalf
 | Item | Decision | Why |
 | --- | --- | --- |
@@ -109,3 +120,5 @@ Branch `feature/v1.1` (from `feature/increment-e`).
 | 8 | The toggle is an icon button whose label says the current mode and the next one | Screen-reader users hear both what is on and what a press does |
 | 9 | Demo accounts use the `@demo.acme.test` domain and projects the `DEMO-` prefix | `--reset` can then remove exactly the demo rows and nothing else |
 | 9 | The seed writes with SQL, not through the API, so it has no audit entries | It runs before anyone signs in, and the audit log records actions by people |
+| 10 | A deliverable that depends on two others appears under both in the chain | Each path stays complete and readable; the alternative (one place plus cross-references) hides the second path |
+| 10 | Deliverables without any dependency are left out of the chain | The List view already shows them; the chain is about dependencies |

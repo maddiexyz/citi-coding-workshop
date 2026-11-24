@@ -7,6 +7,8 @@ import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Snackbar from '@mui/material/Snackbar';
 import Stack from '@mui/material/Stack';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import AddIcon from '@mui/icons-material/Add';
 import useAuth from '../../auth/useAuth';
@@ -16,6 +18,7 @@ import { listResources } from '../../services/resourcesApi';
 import useDebouncedValue from '../../utils/useDebouncedValue';
 import ConfirmDialog from '../ConfirmDialog';
 import projectShape from '../projectPropTypes';
+import ChainView from './ChainView';
 import DeliverableFilters from './DeliverableFilters';
 import DeliverableFormDialog from './DeliverableFormDialog';
 import DeliverableList from './DeliverableList';
@@ -40,6 +43,7 @@ export default function DeliverablesPanel({ project, onChanged }) {
   const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [view, setView] = useState('list');
 
   const filtered = Boolean(search || filters.status || filters.assignee || filters.blocked || filters.overdue);
   // The list is loading while the shown result belongs to an older request
@@ -80,6 +84,8 @@ export default function DeliverablesPanel({ project, onChanged }) {
     return () => { cancelled = true; };
   }, [project.id, reloadKey]);
 
+  const openDeliverable = (item) => setDialog({ id: item.id, statusOnly: !canEdit && canUpdateDeliverableStatus(user, item) });
+
   const changed = (saved, verb) => {
     if (verb) setMessage(`${verb} ${saved.title}`);
     setReloadKey((key) => key + 1);
@@ -119,7 +125,7 @@ export default function DeliverablesPanel({ project, onChanged }) {
         deliverables={result.items}
         isDesktop={isDesktop}
         canDelete={canDelete}
-        onOpen={(item) => setDialog({ id: item.id, statusOnly: !canEdit && canUpdateDeliverableStatus(user, item) })}
+        onOpen={openDeliverable}
         onDelete={setToDelete}
       />
     );
@@ -137,10 +143,21 @@ export default function DeliverablesPanel({ project, onChanged }) {
           </Button>
         )}
       </Stack>
-      <DeliverableFilters filters={filters} people={people} onChange={setFilters} />
+      <ToggleButtonGroup
+        exclusive
+        size="small"
+        value={view}
+        onChange={(_, value) => value && setView(value)}
+        aria-label="Deliverables view"
+        sx={{ alignSelf: 'flex-start' }}
+      >
+        <ToggleButton value="list">List</ToggleButton>
+        <ToggleButton value="chain">Chain</ToggleButton>
+      </ToggleButtonGroup>
+      {view === 'list' && <DeliverableFilters filters={filters} people={people} onChange={setFilters} />}
       {result.error && <Alert severity="error">{result.error}</Alert>}
       {actionError && <Alert severity="error" onClose={() => setActionError(null)}>{actionError}</Alert>}
-      {content}
+      {view === 'list' ? content : <ChainView projectId={project.id} reloadKey={reloadKey} onOpen={openDeliverable} />}
 
       {dialog && (
         <DeliverableFormDialog

@@ -18,6 +18,7 @@ vi.mock('../../services/deliverablesApi', () => ({
   updateDeliverable: vi.fn(),
   addDependency: vi.fn(),
   removeDependency: vi.fn(),
+  getChain: vi.fn().mockResolvedValue({ nodes: [{ id: 1, title: 'Spec', status: 'in_progress', is_blocked: true, is_overdue: false }], rows: [{ id: 1, depth: 0, path: [1] }] }),
 }));
 
 const PROJECT = { id: 1, code: 'P-1', name: 'P', status: 'active', owner_id: 7, team_lead_id: 5 };
@@ -81,6 +82,14 @@ describe('DeliverablesPanel', () => {
     expect(updateDeliverable).toHaveBeenCalledWith(1, {
       title: 'Spec', description: null, status: 'done', due_date: '2026-01-01', assignee_resource_id: 3,
     });
+  });
+
+  it('switches to the chain view', async () => {
+    renderAs({ id: 7, role: 'project_manager' });
+    await screen.findByRole('table', { name: 'Deliverables' });
+    await userEvent.click(screen.getByRole('button', { name: 'Chain' }));
+    expect(await screen.findByRole('navigation', { name: 'Dependency chain' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Search deliverables')).not.toBeInTheDocument();
   });
 
   it('shows the empty state', async () => {

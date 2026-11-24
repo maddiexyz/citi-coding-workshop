@@ -5,6 +5,8 @@ Routes (served at /api/deliverables; every route needs a Bearer token):
     GET    /        ?project_id&status&blocked&overdue&due_soon&due_before&assignee&q -> {"items": [...]}
                     (due_soon=true: not done or cancelled and due within 7 days, by the database clock)
                     (assignee: a resource id, or "me" for the signed-in user's linked person)
+    GET    /chain   ?project_id                    -> {"nodes": [...], "rows": [{"id", "depth", "path"}]}
+                    every dependency chain in the project, top-down, in display order
     GET    /{id}                                   -> deliverable + predecessors + successors
     POST   /        deliverable fields + project_id -> 201 deliverable
     PUT    /{id}    deliverable fields              -> deliverable
@@ -268,6 +270,47 @@ def find_cycle(deliverable_id: int, depends_on_id: int) -> list[int] | None:
 
 
 @require_auth
+def get_chain(request: Request) -> dict:
+    """
+    The project's dependency chains as a tree: starting from deliverables that
+    others depend on but that depend on nothing, walk down to what depends on
+    them (the same recursive walk as the cycle check, in the other
+    direction). Each row is one node at its depth; a deliverable that depends
+    on two others appears under both. Rows come in display order.
+    """
+    raw = request.query.get("project_id")
+    if not raw:
+        raise ApiError(400, "validation_error", "Invalid filter", {"project_id": "This field is required"})
+    project = load_project(parse_id(raw, "Project id"))
+    rows = db.fetch_all(
+        """
+        WITH RECURSIVE walk (id, depth, path, title_path) AS (
+            SELECT d.id, 0, ARRAY[d.id], ARRAY[lower(d.title)]
+            FROM deliverables d
+            WHERE d.project_id = %(project_id)s
+              AND NOT EXISTS (SELECT 1 FROM deliverable_dependencies x WHERE x.deliverable_id = d.id)
+              AND EXISTS (SELECT 1 FROM deliverable_dependencies x WHERE x.depends_on_id = d.id)
+          UNION ALL
+            SELECT dep.deliverable_id, walk.depth + 1, walk.path || dep.deliverable_id,
+                   walk.title_path || lower(next.title)
+            FROM walk
+            JOIN deliverable_dependencies dep ON dep.depends_on_id = walk.id
+            JOIN deliverables next ON next.id = dep.deliverable_id
+            WHERE NOT dep.deliverable_id = ANY (walk.path)
+        )
+        SELECT id, depth, path FROM walk ORDER BY title_path, path
+        """,
+        {"project_id": project["id"]},
+    )
+    ids = sorted({row["id"] for row in rows})
+    nodes = db.fetch_all(
+        "SELECT id, title, status, due_date, is_blocked, is_overdue, assignee_resource_id, assignee_name"
+        " FROM deliverable_details"
+        " WHERE id = ANY(%s) ORDER BY id", (ids,))
+    return json_response(200, {"nodes": nodes, "rows": rows})
+
+
+@require_auth
 def add_dependency(request: Request, deliverable_id: str) -> dict:
     """Record that a deliverable depends on another one in the same project."""
     deliverable = find_deliverable(parse_id(deliverable_id, "Deliverable id"))
@@ -327,6 +370,7 @@ def remove_dependency(request: Request, deliverable_id: str, depends_on_id: str)
 handler = make_handler([
     ("GET", "/", list_deliverables),
     ("POST", "/", create_deliverable),
+    ("GET", "/chain", get_chain),
     ("GET", "/{deliverable_id}", get_deliverable),
     ("PUT", "/{deliverable_id}", update_deliverable),
     ("DELETE", "/{deliverable_id}", delete_deliverable),
