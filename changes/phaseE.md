@@ -25,10 +25,23 @@ Branch `feature/increment-e`. Plan: [docs/PLAN.md](../docs/PLAN.md).
 ## Reproducibility
 - Deploying the backend twice: both runs *No changes*, no migrations, admin
   seed skipped. The frontend deploy removes stale files (`s3 sync --delete`).
-- Fresh clone following only the README: pending (needs the running local
-  stack stopped, since it uses the same ports).
+- **Fresh clone following only the README** (2026-11-25): cloned the branch
+  into an empty folder (no uncommitted files, `node_modules`, `.venv` or
+  `ENVIRONMENT.config`), ran the README's three commands, and the stack came
+  up in about 4 minutes. From the clone: seeded admin signs in; acceptance
+  scripts 72/72; backend 163 tests (after the fix below), 95%; frontend 191
+  tests, 92% lines; Cypress 19/19; load smoke 548 requests, all 200, p95 36 ms.
+- **Migrations from an empty database:** the clone's `bin/migrate.sh` on a
+  new database applied all 7 migrations and seeded the admin; a second run
+  applied nothing. (The stack itself used the existing local database rather
+  than wiping it.)
 
 ## Found along the way
+- **Two clocks for "today":** SQL decided overdue with `current_date` (the
+  database's UTC date) while Python decided late and "this week" with the
+  machine's date (IST). After midnight IST they disagreed and 3 tests failed
+  in the fresh clone. `db.today()` now makes the database the only clock, in
+  the app and the tests.
 - A first local load run at the cloud profile made LocalStack start one
   Lambda container per concurrent request until PostgreSQL's 100-connection
   limit was reached. In AWS the same holds per Lambda instance, so very high
@@ -37,4 +50,3 @@ Branch `feature/increment-e`. Plan: [docs/PLAN.md](../docs/PLAN.md).
 ## Pending (needs the owner)
 - `tests/load/run.sh cloud` and `tests/acceptance/cloud_auth_check.sh`
   (both ask for an account's credentials).
-- The fresh-clone check above.

@@ -5,7 +5,7 @@
 - [x] B. Resources + allocations + over-allocation
 - [x] C. Audit log, then budget
 - [x] D. At-risk dashboard + user management + auth hardening
-- [ ] E. Hardening (coverage, Cypress, Artillery, accessibility, README, compliance, reproducibility)
+- [x] E. Hardening (coverage, Cypress, Artillery, accessibility, README, compliance, reproducibility); cloud load run and cloud sign-in check left for the owner
 
 ## Context
 Increments 1 and 1.5 are done and deployed: sign-in, projects CRUD with RBAC, and the AWS deploy.

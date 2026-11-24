@@ -86,7 +86,7 @@ changes*, no migrations and an existing admin. Never run
 | End-to-end (Cypress, production build, local stack) incl. axe WCAG 2 A/AA | `cd frontend && npm run e2e` | 9 specs, 19 tests passed |
 | API acceptance (curl, local stack) | `tests/acceptance/increment_{a,b,c,d}.sh` | 20 + 15 + 18 + 19 checks passed |
 | Sign-in, refresh cookie, sign-out on the deployed site | `tests/acceptance/cloud_auth_check.sh` | asks for an account |
-| Load (Artillery) | `tests/load/run.sh cloud` (or `local` for a smoke test) | see [docs/COMPLIANCE.md](./docs/COMPLIANCE.md) |
+| Load (Artillery) | `tests/load/run.sh local` (smoke) / `cloud` (asks for an account) | local: 548 requests, all 200, p95 36 ms |
 | Lint and security | `cd backend && .venv/bin/flake8 . && .venv/bin/bandit -r _common _migrate */function.py`; `cd frontend && npm run lint` | clean |
 
 One-time setup for the backend tests:
