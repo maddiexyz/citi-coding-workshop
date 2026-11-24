@@ -111,6 +111,14 @@ Branch `feature/v1.1` (from `feature/increment-e`).
   sit next to the heading. Refreshes keep the current list on screen instead
   of flashing a spinner.
 
+## Definition of done
+- Backend 193 tests, 95% coverage; frontend 239 tests, 93% lines (gates 80%).
+- Cypress: 12 specs, 27 tests, including My work, the Mine filter, assignee
+  status update, change password, department grouping and the colour theme;
+  the axe spec runs every page in light and dark.
+- bandit, flake8, pylint (10/10 per service) and ESLint clean.
+- `tests/acceptance/v1_1.sh`: 26 checks passed locally.
+
 ## Decisions made on your behalf
 | Item | Decision | Why |
 | --- | --- | --- |

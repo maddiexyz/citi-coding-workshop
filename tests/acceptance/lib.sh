@@ -15,6 +15,8 @@ TMP="$(mktemp -d)"
 
 accept_cleanup() {
   "${PSQL[@]}" -c "DELETE FROM projects WHERE code LIKE 'ACC-%'" \
+               -c "DELETE FROM resources WHERE full_name LIKE 'Accept %' OR email LIKE 'accept-%'" \
+               -c "DELETE FROM departments WHERE name LIKE 'Accept %'" \
                -c "DELETE FROM resources WHERE full_name LIKE 'Accept %'" \
                -c "DELETE FROM audit_log WHERE actor_name LIKE 'Accept %'" \
                -c "DELETE FROM login_attempts WHERE email_lower LIKE 'accept-%' OR email_lower LIKE 'nobody-%'" \

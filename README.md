@@ -12,13 +12,13 @@ are in [docs/README.md](./docs/README.md); the rubric is
 
 | Business question | Where |
 | --- | --- |
-| What is the current status of each active project? | Projects list (status, progress, burn); Dashboard |
-| Which projects are at risk of missing their deadlines? | Dashboard → *Projects needing attention*, with the reasons |
-| How are resources allocated across projects? | Project → *Allocations*; People → a person's next 8 weeks |
-| What are the key deliverables and their completion status? | Project → *Deliverables* (status, due date, blocked, overdue) and progress bar |
-| Which team members are over-allocated across multiple projects? | People (*over-allocated this week* filter); Dashboard; warning when saving an allocation |
-| What is the dependency chain between deliverables? | A deliverable's dialog shows *depends on → it → needed by*; cycles are rejected |
-| How much budget has been consumed versus planned? | Project → *Budget* (planned, spent, remaining, burn %, by category); burn in the projects list |
+| What is the current status of each active project? | Projects list (status, progress, burn; filter by department or *Mine*); Dashboard (refreshes every 30 s) |
+| Which projects are at risk of missing their deadlines? | Dashboard → *Projects needing attention*, with the reasons (filter by department); My work → *My projects* |
+| How are resources allocated across projects? | Project → *Allocations*; People → *Group by department*; a person's next 8 weeks; My work → *My allocations* |
+| What are the key deliverables and their completion status? | Project → *Deliverables* (status, due date, blocked, overdue) and progress bar; My work → *My deliverables* |
+| Which team members are over-allocated across multiple projects? | People (*over-allocated this week* filter, per-department counts); Dashboard; warning when saving an allocation |
+| What is the dependency chain between deliverables? | Project → Deliverables → *Chain* (the whole chain, blocked and overdue highlighted); cycles are rejected |
+| How much budget has been consumed versus planned? | Project → *Budget* in ₹ (planned, spent, remaining, burn %, by category); burn in the projects list |
 
 ## Architecture
 
@@ -106,12 +106,13 @@ changes*, no migrations and an existing admin. Never run
 
 | What | Command | Result |
 | --- | --- | --- |
-| Backend unit + integration (real PostgreSQL), coverage gate 80% | `backend/.venv/bin/pytest backend/tests --cov --cov-config=backend/.coveragerc` | 163 passed, **95%** (every service ≥ 92%) |
-| Frontend components, pages and API clients, coverage gate 80% | `cd frontend && npm run coverage` | 191 passed, **92%** lines, 90% statements, 86% branches, 85% functions |
+| Backend unit + integration (real PostgreSQL), coverage gate 80% | `backend/.venv/bin/pytest backend/tests --cov --cov-config=backend/.coveragerc` | 193 passed, **95%** |
+| Frontend components, pages and API clients, coverage gate 80% | `cd frontend && npm run coverage` | 239 passed, **93%** lines, 91% statements, 86% branches, 85% functions |
 | End-to-end (Cypress, production build, local stack) incl. axe WCAG 2 A/AA | `cd frontend && npm run e2e` | 9 specs, 19 tests passed |
 | API acceptance (curl, local stack) | `tests/acceptance/increment_{a,b,c,d}.sh` | 20 + 15 + 18 + 19 checks passed |
 | Sign-in, refresh cookie, sign-out on the deployed site | `tests/acceptance/cloud_auth_check.sh` | asks for an account |
 | Load (Artillery) | `tests/load/run.sh local` (smoke) / `cloud` (asks for an account) | local: 548 requests, all 200, p95 36 ms |
+| v1.1 API acceptance | `tests/acceptance/v1_1.sh` | 26 checks passed |
 | Lint and security | `cd backend && .venv/bin/flake8 . && .venv/bin/bandit -r _common _migrate */function.py`; `cd frontend && npm run lint` | clean |
 
 One-time setup for the backend tests:
@@ -126,10 +127,14 @@ reasons; user administration; mobile layout; accessibility of every page.
 
 | Role | Can |
 | --- | --- |
-| Admin | Everything, including users and roles, people, and deleting spend |
-| Project manager | Create projects; manage their own projects' team lead, deliverables, allocations and budget; delete their projects while they have no spend |
+| Admin | Everything, including users and roles, departments, people, and deleting spend |
+| Project manager | Create projects; manage their own projects' team lead, department, deliverables, allocations and budget; delete their projects while they have no spend |
 | Team lead | Read everything; create and edit (not delete) deliverables and dependencies in projects they lead |
 | Viewer | Read everything except spend line items, change history and the user list |
+| Anyone who is a deliverable's assignee | Change that deliverable's status (nothing else on it) |
+
+Everyone can change their own password (*Account* in the user menu) and sees
+their own work on *My work*, the landing page for everyone but admins.
 
 Every request is checked by the backend (401 / 403); the UI only hides what a
 role can't do. Full matrix: [docs/acme-project-tracking.md](./docs/acme-project-tracking.md#roles).
@@ -139,8 +144,8 @@ role can't do. Full matrix: [docs/acme-project-tracking.md](./docs/acme-project-
 Decisions, assumptions and their reasons are in [docs/PLAN.md](./docs/PLAN.md)
 and the per-increment notes in [changes/](./changes/). Known gaps:
 
-- No offline/PWA support, real-time updates or AI features (beyond this brief).
-- One currency, display only; no audit-log retention policy.
+- No offline/PWA support or AI features; "real time" is 30-second polling on the dashboard.
+- One currency (INR), display only; no audit-log retention policy.
 - Refresh tokens are rotated but reuse of an old one doesn't revoke the session family.
 - Each concurrent Lambda holds its own database connection; at high
   concurrency an RDS Proxy would be needed (see the load test notes).

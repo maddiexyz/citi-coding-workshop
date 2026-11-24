@@ -28,6 +28,7 @@ function psql(sql, vars = {}) {
 const CLEANUP = `
   DELETE FROM projects WHERE code LIKE 'E2E-%';
   DELETE FROM resources WHERE full_name LIKE 'E2E %';
+  DELETE FROM departments WHERE name LIKE 'E2E %';
   DELETE FROM audit_log WHERE actor_name LIKE 'E2E %';
   DELETE FROM login_attempts WHERE email_lower LIKE 'e2e-%';
   DELETE FROM users WHERE email LIKE 'e2e-%@acme.test';

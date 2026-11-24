@@ -9,13 +9,13 @@ describe('Sign-in and sessions', () => {
     cy.get('[role="alert"]').should('contain', 'Invalid email or password');
   });
 
-  it('signs in to the dashboard and keeps the session in a new visit', () => {
+  it('signs in to My work and keeps the session in a new visit', () => {
     cy.visit('/login');
     cy.findField(/email/i).type('e2e-project_manager@acme.test');
     cy.findField(/password/i).type(Cypress.env('E2E_PASSWORD'), { log: false });
     cy.contains('button', 'Sign in').click();
-    cy.location('pathname').should('eq', '/dashboard');
-    cy.contains('h1', 'Dashboard');
+    cy.location('pathname').should('eq', '/my-work');
+    cy.contains('h1', 'My work');
     cy.getCookie('acme_refresh', { domain: 'localhost' }).should('have.property', 'httpOnly', true);
 
     // A new tab has no token in sessionStorage: the refresh cookie restores the session

@@ -8,7 +8,8 @@ Cypress.Commands.add('signIn', (role) => {
     cy.findField(/email/i).type(email(role));
     cy.findField(/password/i).type(Cypress.env('E2E_PASSWORD'), { log: false });
     cy.contains('button', 'Sign in').click();
-    cy.location('pathname').should('eq', '/dashboard');
+    // Admins land on the dashboard, everyone else on My work
+    cy.location('pathname').should('eq', role === 'admin' ? '/dashboard' : '/my-work');
   }, { validate: () => cy.window().its('sessionStorage').invoke('getItem', 'acme.token').should('exist') });
 });
 

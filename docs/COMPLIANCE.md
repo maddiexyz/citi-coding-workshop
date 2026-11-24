@@ -62,8 +62,8 @@ reason). Numbers are from the last run (see [README → Test](../README.md#test)
 ### Coverage goals
 | Goal | Target | Measured |
 | --- | --- | --- |
-| Backend | 80% | 95% lines+branches (gate in `backend/.coveragerc`) |
-| Frontend | 80% | 92% lines, 90% statements, 86% branches, 85% functions (gate in `vite.config.js`) |
+| Backend | 80% | 95% lines+branches, 193 tests (gate in `backend/.coveragerc`) |
+| Frontend | 80% | 93% lines, 91% statements, 86% branches, 85% functions, 239 tests (gate in `vite.config.js`) |
 | API endpoints, all CRUD | 90% | every service 92–99% (allocations 96, audit 98, auth 97, budget 93, dashboard 93, deliverables 99, projects 98, resources 93, users 92); every API client covered by `clients.test.js` |
 | Error handling | 90% | every error status has tests; remaining uncovered lines are mostly defensive branches (e.g. reconnect after a lost DB connection) |
 | Critical user paths, end to end | 100% | every path listed in the README is a Cypress test |
@@ -73,12 +73,12 @@ reason). Numbers are from the last run (see [README → Test](../README.md#test)
 | Area | Status | Notes |
 | --- | --- | --- |
 | Backend: store data, auth, APIs, business logic | ✅ | |
-| Backend: real-time capabilities | ❌ | Not in the brief; pages refresh on navigation |
+| Backend: real-time capabilities | 🟡 | Polling: the dashboard refreshes every 30 s while visible (paused when the tab is hidden), with an *Updated hh:mm* label and a refresh button; no push channel |
 | Backend: async tasks where sync isn't feasible | ✅ (n/a) | All operations finish within a request |
 | Data persistence: create/update/delete/read accurate; DB errors handled | ✅ | Unique, exclusion, restrict and FK violations become 409; others a generic 500 with the detail logged |
 | Validation: required, formats, references, messages, malformed input | ✅ | |
 | API design: methods, status codes, JSON, consistent errors, filters | ✅ | Search/filter on every list |
-| Frontend: responsive, performance, state and feedback, accessibility | ✅ | Pages lazy-loaded; no chunk over 500 kB |
+| Frontend: responsive, performance, state and feedback, accessibility | ✅ | Pages lazy-loaded; no chunk over 500 kB; light and dark mode, both checked by axe and by palette contrast tests |
 | Frontend: PWA, AI features | ❌ | Beyond the brief |
 | Auth: JWT, hashing, token on every endpoint, expiry **and refresh**, clear errors | ✅ | 15-minute access tokens; rotated HttpOnly refresh cookie; `token_expired` vs `invalid_token` |
 | RBAC: roles, restricted endpoints, read-only roles, no escalation, consistent 403 | ✅ | Role re-read from the database on every request |

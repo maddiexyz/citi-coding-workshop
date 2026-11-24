@@ -7,7 +7,10 @@ enforced by the backend and every change kept in an audit log.
 Built so far: Increment 1 (sign-in, projects), Increment A (deliverables,
 dependencies, project team lead), Increment B (people, allocations,
 over-allocation), Increment C (audit log, budgets) and Increment D (at-risk
-dashboard, user management, refresh tokens, sign-in rate limiting). Plan and progress: [PLAN.md](./PLAN.md).
+dashboard, user management, refresh tokens, sign-in rate limiting) and v1.1
+(departments, My work, "Mine" filters, assignee status updates, own password,
+INR, light/dark mode, demo data, dependency chain view, dashboard polling;
+see [changes/phase1_1.md](../changes/phase1_1.md)). Plan and progress: [PLAN.md](./PLAN.md).
 
 ## Run locally
 
@@ -74,6 +77,7 @@ tests/acceptance/increment_a.sh
 tests/acceptance/increment_b.sh
 tests/acceptance/increment_c.sh
 tests/acceptance/increment_d.sh
+tests/acceptance/v1_1.sh
 
 # Sign-in, refresh cookie and sign-out against the deployed site
 # (asks for an account's email and password; nothing is stored)
@@ -91,7 +95,8 @@ tests/acceptance/cloud_auth_check.sh
 | Projects service | `backend/projects/` → `/api/projects` | CRUD with `?status=` and `?q=` filters; `team_lead_id`; progress counts |
 | Deliverables service | `backend/deliverables/` → `/api/deliverables` | CRUD with `?project_id&status&blocked&overdue&due_before&q`; `/{id}/dependencies` |
 | Users service | `backend/users/` → `/api/users` | Admin CRUD, `PUT /{id}/password`; `GET ?role&active&q` also for project managers (pickers) |
-| Dashboard service | `backend/dashboard/` → `/api/dashboard` | `GET /summary`, `GET /at-risk?q&flag&severity` (everyone) |
+| Dashboard service | `backend/dashboard/` → `/api/dashboard` | `GET /summary`, `GET /at-risk?q&flag&severity&department_id` (everyone) |
+| Departments service | `backend/departments/` → `/api/departments` | Everyone reads; admin creates, renames, deletes (409 while in use) |
 | At-risk logic | `backend/_common/risk.py` | Risk signals computed at query time |
 | Resources service | `backend/resources/` → `/api/resources` | People: CRUD (admin), `?q&department&active&over_allocated&week`, `/{id}/load?from&to` |
 | Allocations service | `backend/allocations/` → `/api/allocations` | Hours per week on a project: CRUD (admin, owning PM), `?project_id&resource_id&active_on` |
@@ -179,7 +184,9 @@ Every error has the same shape:
   zero. All of this is computed in the `project_details` view.
 - Amounts are `NUMERIC(12,2)`, sent as exact strings like `"1234.50"`, and
   must be ≥ 0. One currency for the whole app (`app_currency` in Terraform,
-  default `USD`) is used for display only; there is no conversion.
+  default `INR`) is used for display only; there is no conversion. The
+  frontend formats money, numbers and dates for India (`₹1,20,000.00`,
+  `7 Jan 2030`).
 
 ### Audit log
 
@@ -232,6 +239,24 @@ reason for it.
   users who own projects can't be deleted (reassign or deactivate). Role
   changes, deactivation and password resets revoke the user's sessions.
   Password data never appears in responses or the audit log.
+
+### My work, "Mine" and assignees
+
+- `/api/auth/me` returns the user's linked person (`resource_id`). "Mine"
+  filters take only the literal `me` and resolve it from the token:
+  `projects?owner=me|team_lead=me`, `deliverables?assignee=me`,
+  `allocations?resource=me`. Without a linked person they return nothing.
+- *My work* (landing page for all but admins): my overdue, blocked and
+  due-within-7-days deliverables, my next 8 weeks of allocations and load,
+  and the projects I own or lead with their flags.
+- The assignee of a deliverable may change its status, and nothing else.
+
+### Departments
+
+People and projects belong to an optional department (`departments` table,
+names unique regardless of case). Migration 008 created them from the old
+free-text `resources.department` values without losing any. Filters on
+people, projects and the dashboard; *Group by department* on People.
 
 ### Deleting
 
