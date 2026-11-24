@@ -143,6 +143,10 @@ Every error has the same shape:
              "details": { "end_date": "End date must be on or after the start date" } } }
 ```
 
+`details` is always present: per-field messages for validation errors, `{}`
+for everything else (401, 403, 404, 405, 409, 500, …), so clients can rely on
+one shape.
+
 ### Deliverables and dependencies
 
 - A deliverable belongs to one project; statuses are `not_started`,

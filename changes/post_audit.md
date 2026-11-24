@@ -7,7 +7,7 @@ as the snapshot it was; this file tracks what changed since.
 | --- | --- | --- |
 | 1 | React error boundary and recovery from failed chunk loads | Done (below) |
 | 2 | Flaky dark-mode accessibility test | Done (below): root cause was a light flash on load |
-| 3 | Always send `details` in error responses | Open |
+| 3 | Always send `details` in error responses | Done (below) |
 | 4 | Release hygiene: tag after v1.0, section 4 of `phase1_1.md` | Done: `v1.1` tag on `f578680`; section 4 added |
 | 5 | Seeder falls back to `ADMIN_EMAIL` | Done: see `changes/seed_data.md` |
 
@@ -58,3 +58,22 @@ as the snapshot it was; this file tracks what changed since.
 - **Verified:** `09-accessibility.cy.js` passed 5 runs out of 5 (4/4 tests
   each); `12-departments-and-theme.cy.js` passed; ESLint clean.
 - Not yet deployed: the cloud gets it with the next `bin/deploy-frontend.sh`.
+
+## 3. `details` in every error response
+- `error_response` in `backend/_common/http.py` (the one place every service
+  builds errors, including 404, 405 and the 500 handler) now always sends
+  `details`: per-field messages for validation errors, `{}` otherwise. That
+  matches the shape in CLAUDE.md; before, `details` was left out unless
+  there were field errors.
+- No client change needed: `frontend/src/services/api.js` already treated a
+  missing `details` as `{}`.
+- Test: `test_every_error_has_code_message_and_details`
+  (`backend/tests/test_projects_api.py`) checks 400, 401, 403, 404, 405, 409
+  and 500 all have exactly `code`, `message`, `details`. It fails without
+  the fix (checked).
+- Verified:
+  - Backend suite 194 passed, coverage 95.46%; flake8, pylint 10.00 and
+    bandit clean on `http.py`.
+  - Locally (after `bin/sync-common.sh`), the audit's contract checks
+    (`/tmp/audit/api_checks.sh`) now pass 27/27, up from 20/27.
+- Not yet deployed: the cloud gets it with the next `bin/deploy-backend.sh`.

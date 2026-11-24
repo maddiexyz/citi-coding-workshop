@@ -6,6 +6,9 @@ Errors are raised as ``ApiError`` anywhere in a handler and turned into the
 same JSON shape for every service::
 
     {"error": {"code": "validation_error", "message": "...", "details": {...}}}
+
+``details`` is always there: per-field messages for validation errors, ``{}``
+otherwise, so clients can rely on one shape.
 """
 
 import base64
@@ -180,10 +183,8 @@ def json_response(status: int, body: Any = None, *, headers: Optional[dict[str, 
 
 
 def error_response(error: ApiError) -> dict:
-    """Build the standard JSON error response for an ApiError."""
-    payload = {"code": error.code, "message": error.message}
-    if error.details:
-        payload["details"] = error.details
+    """Build the standard JSON error response for an ApiError (``details`` is always present, ``{}`` if none)."""
+    payload = {"code": error.code, "message": error.message, "details": error.details or {}}
     return json_response(error.status, {"error": payload}, headers=error.headers, cookies=error.cookies)
 
 
