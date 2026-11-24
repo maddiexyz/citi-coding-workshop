@@ -102,6 +102,14 @@ fi
 terraform apply -auto-approve
 echo "INFO: Infrastructure deployment complete!"
 
+# Aurora is only reachable inside the VPC: apply migrations and seed the admin
+# (ADMIN_EMAIL / ADMIN_PASSWORD) through the private migrations Lambda.
+# Locally, start-dev.sh has already done this with bin/migrate.sh.
+if [ "$ENVIRONMENT" = "aws" ]; then
+    echo "INFO: Applying database migrations..."
+    "$SCRIPT_DIR/migrate-cloud.sh" aws
+fi
+
 # Display API endpoint
 if [ -n "$API_BASE_URL" ]; then
     echo ""
