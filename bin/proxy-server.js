@@ -64,9 +64,9 @@ const server = http.createServer((req, res) => {
 
   const endpointName = pathParts[1];
   const remainingPath = pathParts.length > 2 ? '/' + pathParts.slice(2).join('/') : '';
-  const targetUrl = endpoints[endpointName] + remainingPath + (parsedUrl.search || '');
+  const baseUrl = endpoints[endpointName];
 
-  if (!targetUrl) {
+  if (!baseUrl) {
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       error: `Unknown endpoint: ${endpointName}`,
@@ -75,6 +75,8 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Lambda URLs end with '/', so drop it before appending the remaining path
+  const targetUrl = baseUrl.replace(/\/$/, '') + remainingPath + (parsedUrl.search || '');
   console.log(`${req.method} /api/${endpointName} -> ${targetUrl}`);
 
   // Parse target URL
@@ -101,7 +103,9 @@ const server = http.createServer((req, res) => {
       'accept': headers.accept || 'application/json',
       'content-type': headers['content-type'] || 'application/json',
       'user-agent': headers['user-agent'] || 'proxy-server',
-      'host': target.host
+      'host': target.host,
+      // Forward the bearer token so backend services can authenticate requests
+      ...(headers.authorization ? { 'authorization': headers.authorization } : {})
     }
   };
 
