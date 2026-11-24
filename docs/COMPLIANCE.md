@@ -56,7 +56,7 @@ reason). Numbers are from the last run (see [README → Test](../README.md#test)
 | Frontend component tests (guide: Jest + RTL) | ✅ | Vitest + React Testing Library (Jest-compatible API) |
 | Frontend API tests with mocked responses | ✅ | `services/api.test.js`, `services/clients.test.js` |
 | End-to-end tests (Cypress or Selenium) | ✅ | `frontend/cypress/e2e/*` (19 tests) |
-| Load testing (Artillery or JMeter) | 🟡 | `tests/load/` scenario and runner. Local smoke: 548 requests, all 200, p95 36 ms. The cloud profile needs an account and is run by the owner (`tests/load/run.sh cloud`). A local run at the cloud profile overloaded LocalStack (one container and DB connection per concurrent request), which is why the local profile is a smoke test |
+| Load testing (Artillery or JMeter) | 🟡 | `tests/load/` scenario and runner. Local smoke: 548 requests, all 200, p95 36 ms. The cloud profile (`tests/load/run.sh cloud`, needs an account) was not run before the v1.0 freeze. A local run at the cloud profile overloaded LocalStack (one container and DB connection per concurrent request), which is why the local profile is a smoke test |
 | Performance monitoring | 🟡 | CloudWatch duration reports used to size the auth Lambda (4.6 s → 0.55 s per login); no dashboards or alarms |
 
 ### Coverage goals

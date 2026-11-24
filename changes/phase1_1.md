@@ -119,6 +119,18 @@ Branch `feature/v1.1` (from `feature/increment-e`).
 - bandit, flake8, pylint (10/10 per service) and ESLint clean.
 - `tests/acceptance/v1_1.sh`: 26 checks passed locally.
 
+## Freeze (v1.0)
+- `feature/v1.1` fast-forwarded into `main` (which held the workshop
+  template), tagged `v1.0`.
+- Deployed from `main`: migration 008 applied in Aurora; new pages and
+  endpoints answer in the cloud (pages 200, API 401 without a token). The
+  first deploy reset the organizers' encryption and retention on the new
+  `departments` log group (accepted drift); the next backend deploy reported
+  *No changes*, no migrations, admin seed skipped.
+- **Not run:** `tests/acceptance/cloud_auth_check.sh` and
+  `tests/load/run.sh cloud` (skipped by the owner; both need an account's
+  credentials).
+
 ## Decisions made on your behalf
 | Item | Decision | Why |
 | --- | --- | --- |
