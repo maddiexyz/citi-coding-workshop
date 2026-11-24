@@ -1,3 +1,9 @@
+# Lambda CPU scales with memory. auth checks bcrypt passwords (cost 12), which
+# takes ~4.5 s at the default 128 MB and well under a second at 1024 MB.
+locals {
+  function_memory = { auth = 1024 }
+}
+
 module "lambda" {
   for_each = local.function_names
   source   = "terraform-aws-modules/lambda/aws"
@@ -8,7 +14,7 @@ module "lambda" {
   architectures   = [each.value.arch]
   handler         = each.value.handler
   runtime         = each.value.runtime
-  memory_size     = 128
+  memory_size     = lookup(local.function_memory, each.key, 128)
   timeout         = 300
   tracing_mode    = "PassThrough"
   build_in_docker = false
