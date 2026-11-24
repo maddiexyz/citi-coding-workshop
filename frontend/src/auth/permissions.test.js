@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   canChangeProject, canCreateProject, canDeleteDeliverables, canEditDeliverables, canManageAllocations,
-  canManageResources, isAssignedTeamLead,
+  canManageResources, isAssignedTeamLead, canDeleteProject, canManageBudget, canDeleteBudgetEntries,
+  canReadProjectAudit,
 } from './permissions';
 
 const project = { owner_id: 1 };
@@ -68,5 +69,29 @@ describe('resource and allocation permissions', () => {
   ])('%s #%s -> resources %s, allocations %s', (role, id, resources, allocations) => {
     expect(canManageResources({ id, role })).toBe(resources);
     expect(canManageAllocations({ id, role }, project)).toBe(allocations);
+  });
+});
+
+describe('budget, audit and project delete permissions', () => {
+  const project = { owner_id: 1, budget_entry_count: 0 };
+  const spent = { owner_id: 1, budget_entry_count: 2 };
+
+  it('lets the owning PM delete a project only while it has no spend entries', () => {
+    expect(canDeleteProject({ id: 1, role: 'project_manager' }, project)).toBe(true);
+    expect(canDeleteProject({ id: 1, role: 'project_manager' }, spent)).toBe(false);
+    expect(canDeleteProject({ id: 9, role: 'admin' }, spent)).toBe(true);
+  });
+
+  it.each([
+    ['admin', 9, true, true, true],
+    ['project_manager', 1, true, false, true],
+    ['project_manager', 2, false, false, false],
+    ['team_lead', 1, false, false, false],
+    ['viewer', 1, false, false, false],
+  ])('%s #%s -> manage %s, delete entries %s, audit %s', (role, id, manage, remove, auditable) => {
+    const user = { id, role };
+    expect(canManageBudget(user, project)).toBe(manage);
+    expect(canDeleteBudgetEntries(user)).toBe(remove);
+    expect(canReadProjectAudit(user, project)).toBe(auditable);
   });
 });

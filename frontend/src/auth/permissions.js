@@ -73,3 +73,39 @@ export function canManageResources(user) {
 export function canManageAllocations(user, project) {
   return canChangeProject(user, project);
 }
+
+/**
+ * @param {{id: number, role: string}|null} user
+ * @param {{owner_id: number, budget_entry_count?: number}} project
+ * @returns {boolean} True if the user may delete the project (admin only once it has spend entries).
+ */
+export function canDeleteProject(user, project) {
+  if (user?.role === 'admin') return true;
+  return canChangeProject(user, project) && !(project.budget_entry_count > 0);
+}
+
+/**
+ * @param {{id: number, role: string}|null} user
+ * @param {{owner_id: number}} project
+ * @returns {boolean} True if the user may see and change spend entries and the planned budget.
+ */
+export function canManageBudget(user, project) {
+  return canChangeProject(user, project);
+}
+
+/**
+ * @param {{role: string}|null} user
+ * @returns {boolean} True if the user may delete spend entries (admin only).
+ */
+export function canDeleteBudgetEntries(user) {
+  return user?.role === 'admin';
+}
+
+/**
+ * @param {{id: number, role: string}|null} user
+ * @param {{owner_id: number}} project
+ * @returns {boolean} True if the user may read the project's change history.
+ */
+export function canReadProjectAudit(user, project) {
+  return canChangeProject(user, project);
+}

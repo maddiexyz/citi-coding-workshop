@@ -8,13 +8,14 @@ import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import BurnChip from './budget/BurnChip';
 import ProjectActions from './ProjectActions';
 import ProjectStatusChip from './ProjectStatusChip';
 import projectShape from './projectPropTypes';
 import { formatDate, formatProgress } from '../utils/format';
 
 /** Desktop view: projects in a table. */
-export default function ProjectTable({ projects, canChange, onDelete }) {
+export default function ProjectTable({ projects, canChange, canDelete, onDelete }) {
   return (
     <TableContainer component={Paper} variant="outlined">
       <Table aria-label="Projects">
@@ -25,6 +26,7 @@ export default function ProjectTable({ projects, canChange, onDelete }) {
             <TableCell>Status</TableCell>
             <TableCell>Owner</TableCell>
             <TableCell>Deliverables</TableCell>
+            <TableCell>Budget</TableCell>
             <TableCell>Start</TableCell>
             <TableCell>End</TableCell>
             <TableCell align="right">Actions</TableCell>
@@ -40,10 +42,11 @@ export default function ProjectTable({ projects, canChange, onDelete }) {
               <TableCell><ProjectStatusChip status={project.status} /></TableCell>
               <TableCell>{project.owner_name}</TableCell>
               <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatProgress(project)}</TableCell>
+              <TableCell><BurnChip project={project} /></TableCell>
               <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(project.start_date)}</TableCell>
               <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(project.end_date)}</TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                {canChange(project) && <ProjectActions project={project} onDelete={onDelete} />}
+                {canChange(project) && <ProjectActions project={project} canDelete={canDelete(project)} onDelete={onDelete} />}
               </TableCell>
             </TableRow>
           ))}
@@ -56,5 +59,6 @@ export default function ProjectTable({ projects, canChange, onDelete }) {
 ProjectTable.propTypes = {
   projects: PropTypes.arrayOf(projectShape).isRequired,
   canChange: PropTypes.func.isRequired,
+  canDelete: PropTypes.func.isRequired,
   onDelete: PropTypes.func.isRequired,
 };

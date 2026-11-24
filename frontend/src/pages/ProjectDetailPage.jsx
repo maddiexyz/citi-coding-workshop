@@ -14,9 +14,11 @@ import Typography from '@mui/material/Typography';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import useAuth from '../auth/useAuth';
-import { canChangeProject } from '../auth/permissions';
+import { canChangeProject, canReadProjectAudit } from '../auth/permissions';
 import ProjectStatusChip from '../components/ProjectStatusChip';
 import AllocationsPanel from '../components/allocations/AllocationsPanel';
+import ActivityPanel from '../components/audit/ActivityPanel';
+import BudgetPanel from '../components/budget/BudgetPanel';
 import DeliverablesPanel from '../components/deliverables/DeliverablesPanel';
 import projectShape from '../components/projectPropTypes';
 import { getProject } from '../services/projectsApi';
@@ -26,6 +28,8 @@ const TABS = [
   { value: 'overview', label: 'Overview' },
   { value: 'deliverables', label: 'Deliverables' },
   { value: 'allocations', label: 'Allocations' },
+  { value: 'budget', label: 'Budget' },
+  { value: 'activity', label: 'Activity', allowed: canReadProjectAudit },
 ];
 
 function Detail({ label, children }) {
@@ -80,7 +84,7 @@ export default function ProjectDetailPage() {
   const { id } = useParams();
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = TABS.some((t) => t.value === searchParams.get('tab')) ? searchParams.get('tab') : 'overview';
+  const requestedTab = searchParams.get('tab');
 
   const [state, setState] = useState({ key: null, project: null, error: null });
   const [reloadKey, setReloadKey] = useState(0);
@@ -95,6 +99,8 @@ export default function ProjectDetailPage() {
   }, [id, requestKey]);
 
   const { project, error } = state;
+  const tabs = project ? TABS.filter((t) => !t.allowed || t.allowed(user, project)) : TABS;
+  const tab = tabs.some((t) => t.value === requestedTab) ? requestedTab : 'overview';
   if (!project && state.key !== requestKey) {
     return <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress aria-label="Loading project" /></Box>;
   }
@@ -133,7 +139,7 @@ export default function ProjectDetailPage() {
           variant="scrollable"
           aria-label="Project sections"
         >
-          {TABS.map((t) => <Tab key={t.value} value={t.value} label={t.label} id={`tab-${t.value}`} aria-controls={`panel-${t.value}`} />)}
+          {tabs.map((t) => <Tab key={t.value} value={t.value} label={t.label} id={`tab-${t.value}`} aria-controls={`panel-${t.value}`} />)}
         </Tabs>
         <Box role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} sx={{ p: { xs: 2, sm: 3 } }}>
           {tab === 'overview' && <Overview project={project} />}
@@ -141,6 +147,8 @@ export default function ProjectDetailPage() {
             <DeliverablesPanel project={project} onChanged={() => setReloadKey((key) => key + 1)} />
           )}
           {tab === 'allocations' && <AllocationsPanel project={project} />}
+          {tab === 'budget' && <BudgetPanel project={project} onChanged={() => setReloadKey((key) => key + 1)} />}
+          {tab === 'activity' && <ActivityPanel project={project} />}
         </Box>
       </Paper>
     </Stack>

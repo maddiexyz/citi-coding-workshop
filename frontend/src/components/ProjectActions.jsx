@@ -6,8 +6,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import projectShape from './projectPropTypes';
 
-/** Edit and delete buttons for one project (render only when the user may change it). */
-export default function ProjectActions({ project, onDelete }) {
+/** Edit and (when allowed) delete buttons for one project; render only when the user may change it. */
+export default function ProjectActions({ project, canDelete = true, onDelete }) {
   return (
     <>
       <Tooltip title="Edit">
@@ -15,16 +15,19 @@ export default function ProjectActions({ project, onDelete }) {
           <EditIcon fontSize="small" />
         </IconButton>
       </Tooltip>
-      <Tooltip title="Delete">
-        <IconButton onClick={() => onDelete(project)} aria-label={`Delete ${project.code}`} color="error">
-          <DeleteIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
+      {canDelete && (
+        <Tooltip title="Delete">
+          <IconButton onClick={() => onDelete(project)} aria-label={`Delete ${project.code}`} color="error">
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      )}
     </>
   );
 }
 
 ProjectActions.propTypes = {
   project: projectShape.isRequired,
+  canDelete: PropTypes.bool,
   onDelete: PropTypes.func.isRequired,
 };

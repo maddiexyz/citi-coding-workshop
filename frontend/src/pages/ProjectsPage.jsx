@@ -10,7 +10,7 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import AddIcon from '@mui/icons-material/Add';
 import useAuth from '../auth/useAuth';
-import { canChangeProject, canCreateProject } from '../auth/permissions';
+import { canChangeProject, canCreateProject, canDeleteProject } from '../auth/permissions';
 import { deleteProject, listProjects } from '../services/projectsApi';
 import ConfirmDialog from '../components/ConfirmDialog';
 import ProjectCardList from '../components/ProjectCardList';
@@ -18,6 +18,17 @@ import ProjectFilters from '../components/ProjectFilters';
 import ProjectTable from '../components/ProjectTable';
 
 const SEARCH_DELAY_MS = 300;
+
+/** Spell out what deleting a project removes with it. */
+function deleteMessage(project) {
+  const parts = [
+    [project.deliverable_count, 'deliverable', 'deliverables'],
+    [project.allocation_count, 'allocation', 'allocations'],
+    [project.budget_entry_count, 'spend entry', 'spend entries'],
+  ].filter(([count]) => count > 0).map(([count, one, many]) => `${count} ${count === 1 ? one : many}`);
+  const children = parts.length ? `, together with ${parts.join(', ')}` : '';
+  return `${project.code} – ${project.name} will be permanently deleted${children}. To retire a project, set its status to completed or cancelled instead.`;
+}
 
 /** Projects list with search, status filter and role-aware actions. */
 export default function ProjectsPage() {
@@ -90,6 +101,7 @@ export default function ProjectsPage() {
   };
 
   const canChange = (project) => canChangeProject(user, project);
+  const canDelete = (project) => canDeleteProject(user, project);
   const List = isDesktop ? ProjectTable : ProjectCardList;
 
   let content;
@@ -106,7 +118,7 @@ export default function ProjectsPage() {
       </Typography>
     );
   } else {
-    content = <List projects={projects} canChange={canChange} onDelete={setToDelete} />;
+    content = <List projects={projects} canChange={canChange} canDelete={canDelete} onDelete={setToDelete} />;
   }
 
   return (
@@ -127,7 +139,7 @@ export default function ProjectsPage() {
       <ConfirmDialog
         open={Boolean(toDelete)}
         title="Delete project?"
-        message={toDelete ? `${toDelete.code} – ${toDelete.name} will be permanently deleted.` : ''}
+        message={toDelete ? deleteMessage(toDelete) : ''}
         confirmLabel="Delete"
         busy={deleting}
         onConfirm={confirmDelete}

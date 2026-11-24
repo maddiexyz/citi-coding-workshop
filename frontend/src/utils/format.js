@@ -42,3 +42,15 @@ export function formatHours(hours) {
 export function formatWeek(weekStart) {
   return `Week of ${formatDate(weekStart)}`;
 }
+
+/**
+ * Format an amount of money. API amounts arrive as exact decimal strings
+ * ("1234.50"); they are only converted to a number here, for display.
+ * @param {string|number|null} amount
+ * @param {string} [currency] ISO 4217 code from the API, e.g. "USD".
+ * @returns {string} e.g. "$1,234.50", or an em dash when empty.
+ */
+export function formatMoney(amount, currency = 'USD') {
+  if (amount === null || amount === undefined || amount === '') return '—';
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(Number(amount));
+}

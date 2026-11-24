@@ -18,6 +18,7 @@ import validateProject from '../utils/projectValidation';
 
 const EMPTY_FORM = {
   code: '', name: '', description: '', status: 'planned', start_date: '', end_date: '', team_lead_id: '',
+  budget_planned: '',
 };
 
 /** Convert an API project into form values (nulls become empty strings). */
@@ -96,6 +97,8 @@ export default function ProjectFormPage() {
       start_date: values.start_date || null,
       end_date: values.end_date || null,
       team_lead_id: values.team_lead_id === '' ? null : Number(values.team_lead_id),
+      // Kept as a string so the amount is never rounded as a float
+      budget_planned: String(values.budget_planned).trim() || null,
     };
     try {
       const saved = isEdit ? await updateProject(id, payload) : await createProject(payload);
@@ -148,6 +151,12 @@ export default function ProjectFormPage() {
             )}
             {teamLeads.map((lead) => <MenuItem key={lead.id} value={lead.id}>{lead.full_name}</MenuItem>)}
           </TextField>
+          <TextField
+            label="Planned budget"
+            inputMode="decimal"
+            {...fieldProps('budget_planned')}
+            helperText={errors.budget_planned ?? 'The approved budget; leave empty if none is set yet'}
+          />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField label="Start date" type="date" {...fieldProps('start_date')} slotProps={{ inputLabel: { shrink: true } }} />
             <TextField label="End date" type="date" {...fieldProps('end_date')} slotProps={{ inputLabel: { shrink: true } }} />

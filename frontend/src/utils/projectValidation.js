@@ -21,6 +21,11 @@ export default function validateProject(values) {
 
   if (values.description.length > 2000) errors.description = 'Must be at most 2000 characters';
 
+  const budget = String(values.budget_planned ?? '').trim();
+  if (budget && !/^\d{1,10}(\.\d{1,2})?$/.test(budget)) {
+    errors.budget_planned = 'Enter an amount of 0 or more, with at most 2 decimals';
+  }
+
   // "YYYY-MM-DD" strings compare correctly as text
   if (values.start_date && values.end_date && values.end_date < values.start_date) {
     errors.end_date = 'End date must be on or after the start date';

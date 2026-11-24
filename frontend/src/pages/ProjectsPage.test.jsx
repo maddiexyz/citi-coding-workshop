@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { Context as ResponsiveContext } from 'react-responsive';
 import AuthContext from '../auth/authContext';
@@ -45,6 +46,24 @@ describe('ProjectsPage', () => {
     expect(await screen.findByRole('link', { name: /new project/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Edit MINE-1' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Edit THEIRS-1' })).not.toBeInTheDocument();
+  });
+
+  it('hides delete from the owning PM once a project has spend, and shows burn', async () => {
+    renderAs('project_manager', 1200, Promise.resolve([
+      { ...PROJECTS[0], budget_entry_count: 1, burn_pct: '110.0', over_budget: true },
+    ]));
+    expect(await screen.findByRole('link', { name: 'Edit MINE-1' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete MINE-1' })).not.toBeInTheDocument();
+    expect(screen.getByText('110.0% · over budget')).toBeInTheDocument();
+  });
+
+  it('lists what a delete removes', async () => {
+    renderAs('project_manager', 1200, Promise.resolve([
+      { ...PROJECTS[0], deliverable_count: 2, allocation_count: 1, budget_entry_count: 0 },
+    ]));
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete MINE-1' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('together with 2 deliverables, 1 allocation');
+    expect(screen.getByRole('dialog')).toHaveTextContent('set its status to completed or cancelled');
   });
 
   it('uses a table on desktop and cards on mobile', async () => {

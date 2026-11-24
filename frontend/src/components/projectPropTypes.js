@@ -15,6 +15,13 @@ const projectShape = PropTypes.shape({
   team_lead_name: PropTypes.string,
   deliverables_total: PropTypes.number,
   deliverables_done: PropTypes.number,
+  budget_planned: PropTypes.string,
+  actual_spend: PropTypes.string,
+  burn_pct: PropTypes.string,
+  over_budget: PropTypes.bool,
+  deliverable_count: PropTypes.number,
+  allocation_count: PropTypes.number,
+  budget_entry_count: PropTypes.number,
 });
 
 export default projectShape;
