@@ -47,8 +47,9 @@ class ApiError(Exception):
         self.cookies = cookies
 
 
+# Plain data: one field per part of the request
 @dataclass
-class Request:
+class Request:  # pylint: disable=too-many-instance-attributes
     """The parts of a Lambda Function URL event that handlers need."""
 
     method: str

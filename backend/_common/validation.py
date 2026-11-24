@@ -33,7 +33,8 @@ class Validator:
         """Record an error for a field (the first error per field wins)."""
         self.errors.setdefault(name, message)
 
-    def string(self, name: str, *, required: bool = False, max_length: int = 255,
+    # Keyword-only options of one validation rule, not a design smell
+    def string(self, name: str, *, required: bool = False, max_length: int = 255,  # pylint: disable=too-many-arguments
                pattern: Optional[str] = None, pattern_message: str = "Invalid format",
                transform: Optional[Callable[[str], str]] = None, strip: bool = True) -> Optional[str]:
         """

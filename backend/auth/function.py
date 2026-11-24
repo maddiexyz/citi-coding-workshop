@@ -32,6 +32,7 @@ from common.validation import Validator
 logger = logging.getLogger()
 
 INVALID_CREDENTIALS = ApiError(401, "invalid_credentials", "Invalid email or password")
+WRONG_CURRENT = "Incorrect password"
 WINDOW_MINUTES = 15
 MAX_FAILURES_PER_EMAIL = 5
 MAX_FAILURES_PER_IP = 20
@@ -164,7 +165,7 @@ def change_password(request: Request) -> dict:
     if not verify_password(current, user["password_hash"]):
         record_attempt(user["email"], request.source_ip, False)
         raise ApiError(400, "validation_error", "Some fields are invalid",
-                       {"current_password": "Incorrect password"})
+                       {"current_password": WRONG_CURRENT})
     with db.transaction():
         db.execute("UPDATE users SET password_hash = %s WHERE id = %s", (hash_password(new), user["id"]))
         sessions.revoke_others(user["id"], request.cookies.get(sessions.COOKIE_NAME))

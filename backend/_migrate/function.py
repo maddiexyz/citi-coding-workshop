@@ -21,7 +21,8 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from common import db
+# common/ is added to the package by infra/migrate.tf
+from common import db  # pylint: disable=import-error
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

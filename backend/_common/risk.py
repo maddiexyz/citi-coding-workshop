@@ -55,7 +55,8 @@ def schedule_slip(project: dict, today: date) -> Optional[dict]:
                         "gap_points": round(gap, 1), "threshold": slip_threshold()}}
 
 
-def evaluate(project_ids: Optional[list[int]] = None, department_id: Optional[int] = None) -> list[dict]:
+def evaluate(project_ids: Optional[list[int]] = None,  # pylint: disable=too-many-locals
+             department_id: Optional[int] = None) -> list[dict]:
     """
     Evaluate projects and return each with is_at_risk, severity and risk_reasons.
 

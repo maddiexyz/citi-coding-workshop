@@ -15,7 +15,8 @@ from psycopg.conninfo import make_conninfo
 from psycopg.rows import dict_row
 
 # Module-level connection survives between invocations of a warm Lambda container
-_connection: Optional[psycopg.Connection] = None
+# Module state, not a constant
+_connection: Optional[psycopg.Connection] = None  # pylint: disable=invalid-name
 
 
 def _connection_info() -> str:
