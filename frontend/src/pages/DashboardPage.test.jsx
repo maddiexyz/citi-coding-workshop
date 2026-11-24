@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { Context as ResponsiveContext } from 'react-responsive';
 import DashboardPage from './DashboardPage';
@@ -51,6 +52,16 @@ describe('DashboardPage', () => {
     expect(within(list).getByText(/Spec \(due/)).toBeInTheDocument();
     expect(within(list).getByText('120.0% · over budget')).toBeInTheDocument();   // separate flag
     expect(within(list).getByText(/Over budget: 120.0% of the planned budget spent/)).toBeInTheDocument();
+  });
+
+  it('shows when the data was updated and refreshes on demand', async () => {
+    renderPage();
+    expect(await screen.findByText(/^Updated \d{2}:\d{2}$/)).toBeInTheDocument();
+    expect(getDashboardSummary).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh now' }));
+    await vi.waitFor(() => expect(getDashboardSummary).toHaveBeenCalledTimes(2));
+    expect(listAtRiskProjects).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('list', { name: 'Projects at risk' })).toBeInTheDocument();   // no spinner flash
   });
 
   it('shows the empty state', async () => {

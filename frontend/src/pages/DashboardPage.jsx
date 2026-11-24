@@ -17,14 +17,21 @@ import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import SearchIcon from '@mui/icons-material/Search';
 import BurnChip from '../components/budget/BurnChip';
 import DepartmentSelect from '../components/DepartmentSelect';
 import ProjectStatusChip from '../components/ProjectStatusChip';
 import { getDashboardSummary, listAtRiskProjects } from '../services/dashboardApi';
-import { formatDate, formatHours } from '../utils/format';
+import { formatDate, formatHours, LOCALE } from '../utils/format';
+import useAutoRefresh from '../utils/useAutoRefresh';
 import useDebouncedValue from '../utils/useDebouncedValue';
+
+const REFRESH_MS = 30000;
+const TIME = new Intl.DateTimeFormat(LOCALE, { hour: '2-digit', minute: '2-digit', hour12: false });
 
 const SEVERITY = { high: { label: 'High risk', color: 'error' }, medium: { label: 'At risk', color: 'warning' } };
 
@@ -105,23 +112,23 @@ export default function DashboardPage() {
   const [flag, setFlag] = useState('');
   const [departmentId, setDepartmentId] = useState('');
   const [list, setList] = useState({ key: null, items: [], error: null });
+  const [updatedAt, setUpdatedAt] = useState(null);
+  // Polling: refresh every 30 s while the tab is visible (the dashboard has no push channel)
+  const { tick, refresh } = useAutoRefresh(REFRESH_MS);
   const listKey = `${q}|${flag}|${departmentId}`;
 
   useEffect(() => {
     let cancelled = false;
-    getDashboardSummary()
-      .then((data) => !cancelled && setSummary({ data, error: null }))
-      .catch((err) => !cancelled && setSummary({ data: null, error: err.message }));
+    Promise.all([
+      getDashboardSummary()
+        .then((data) => !cancelled && setSummary({ data, error: null }))
+        .catch((err) => !cancelled && setSummary((current) => ({ data: current.data, error: err.message }))),
+      listAtRiskProjects({ q, flag, department_id: departmentId })
+        .then((items) => !cancelled && setList({ key: listKey, items, error: null }))
+        .catch((err) => !cancelled && setList({ key: listKey, items: [], error: err.message })),
+    ]).then(() => !cancelled && setUpdatedAt(new Date()));
     return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    listAtRiskProjects({ q, flag, department_id: departmentId })
-      .then((items) => !cancelled && setList({ key: listKey, items, error: null }))
-      .catch((err) => !cancelled && setList({ key: listKey, items: [], error: err.message }));
-    return () => { cancelled = true; };
-  }, [q, flag, departmentId, listKey]);
+  }, [q, flag, departmentId, listKey, tick]);
 
   const s = summary.data;
   let projects;
@@ -170,7 +177,15 @@ export default function DashboardPage() {
 
   return (
     <Stack spacing={3}>
-      <Typography variant="h4" component="h1">Dashboard</Typography>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }} useFlexGap>
+        <Typography variant="h4" component="h1" sx={{ flexGrow: 1 }}>Dashboard</Typography>
+        <Typography variant="body2" color="text.secondary" role="status" aria-live="polite">
+          {updatedAt ? `Updated ${TIME.format(updatedAt)}` : 'Loading…'}
+        </Typography>
+        <Tooltip title="Refresh now">
+          <IconButton aria-label="Refresh now" onClick={refresh}><RefreshIcon /></IconButton>
+        </Tooltip>
+      </Stack>
       {summary.error && <Alert severity="error">{summary.error}</Alert>}
       {!s && !summary.error && <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress aria-label="Loading summary" /></Box>}
       {s && (

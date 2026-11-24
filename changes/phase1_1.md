@@ -103,6 +103,14 @@ Branch `feature/v1.1` (from `feature/increment-e`).
   and red when overdue, status and assignee, and a button that opens the
   deliverable. Indentation narrows on mobile.
 
+## 11. Dashboard auto-refresh
+- `useAutoRefresh` (`frontend/src/utils/useAutoRefresh.js`): the dashboard
+  reloads its summary and flagged projects every 30 seconds while the tab is
+  visible, pauses while it is hidden, and catches up when it is shown again.
+  An *Updated hh:mm* label (a polite live region) and a *Refresh now* button
+  sit next to the heading. Refreshes keep the current list on screen instead
+  of flashing a spinner.
+
 ## Decisions made on your behalf
 | Item | Decision | Why |
 | --- | --- | --- |
@@ -122,3 +130,5 @@ Branch `feature/v1.1` (from `feature/increment-e`).
 | 9 | The seed writes with SQL, not through the API, so it has no audit entries | It runs before anyone signs in, and the audit log records actions by people |
 | 10 | A deliverable that depends on two others appears under both in the chain | Each path stays complete and readable; the alternative (one place plus cross-references) hides the second path |
 | 10 | Deliverables without any dependency are left out of the chain | The List view already shows them; the chain is about dependencies |
+| 11 | Polling, not push | The stack has no WebSocket channel (Lambda + CloudFront); 30 s polling of two cached-free reads is cheap |
+| 11 | Times shown as 24-hour hh:mm (en-IN) | Matches "Updated hh:mm" and is unambiguous |
