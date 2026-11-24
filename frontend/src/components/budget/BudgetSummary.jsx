@@ -60,19 +60,22 @@ export default function BudgetSummary({ summary }) {
         <Typography variant="subtitle2" component="h3" gutterBottom>Spend by category</Typography>
         <Stack spacing={1} component="dl" sx={{ m: 0 }}>
           {summary.by_category.map((c) => (
+            // A <dl> row may only hold <dt> and <dd>, so the bar sits inside the <dd>
             <Stack key={c.category} direction="row" spacing={2} sx={{ alignItems: 'center' }}>
               <Typography component="dt" variant="body2" sx={{ width: 90 }}>{categoryLabel(c.category)}</Typography>
-              <Box sx={{ flexGrow: 1 }}>
-                <LinearProgress
-                  variant="determinate"
-                  value={maxCategory ? (Number(c.amount) / maxCategory) * 100 : 0}
-                  sx={{ height: 6, borderRadius: 3 }}
-                  aria-hidden
-                />
-              </Box>
-              <Typography component="dd" variant="body2" sx={{ m: 0, minWidth: 100, textAlign: 'right' }}>
-                {formatMoney(c.amount, currency)}
-              </Typography>
+              <Stack component="dd" direction="row" spacing={2} sx={{ m: 0, flexGrow: 1, alignItems: 'center' }}>
+                <Box sx={{ flexGrow: 1 }}>
+                  <LinearProgress
+                    variant="determinate"
+                    value={maxCategory ? (Number(c.amount) / maxCategory) * 100 : 0}
+                    sx={{ height: 6, borderRadius: 3 }}
+                    aria-hidden
+                  />
+                </Box>
+                <Typography variant="body2" sx={{ minWidth: 100, textAlign: 'right' }}>
+                  {formatMoney(c.amount, currency)}
+                </Typography>
+              </Stack>
             </Stack>
           ))}
         </Stack>
