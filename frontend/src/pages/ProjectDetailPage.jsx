@@ -21,6 +21,7 @@ import AllocationsPanel from '../components/allocations/AllocationsPanel';
 import ActivityPanel from '../components/audit/ActivityPanel';
 import BudgetPanel from '../components/budget/BudgetPanel';
 import DeliverablesPanel from '../components/deliverables/DeliverablesPanel';
+import ForecastCard from '../components/forecast/ForecastCard';
 import projectShape from '../components/projectPropTypes';
 import { getProject } from '../services/projectsApi';
 import { formatDate } from '../utils/format';
@@ -44,7 +45,7 @@ function Detail({ label, children }) {
 
 Detail.propTypes = { label: PropTypes.string.isRequired, children: PropTypes.node };
 
-/** Overview tab: key facts and deliverable progress. */
+/** Overview tab: key facts, deliverable progress and the completion forecast. */
 function Overview({ project }) {
   const you = useYou();
   const total = project.deliverables_total ?? 0;
@@ -76,6 +77,7 @@ function Overview({ project }) {
           </Stack>
         )}
       </Box>
+      <ForecastCard project={project} />
     </Stack>
   );
 }

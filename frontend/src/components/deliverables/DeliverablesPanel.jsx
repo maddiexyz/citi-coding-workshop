@@ -14,6 +14,7 @@ import AddIcon from '@mui/icons-material/Add';
 import useAuth from '../../auth/useAuth';
 import { canDeleteDeliverables, canEditDeliverables, canUpdateDeliverableProgress } from '../../auth/permissions';
 import { deleteDeliverable, listDeliverables } from '../../services/deliverablesApi';
+import { criticalIds, getForecast } from '../../services/forecastApi';
 import { listResources } from '../../services/resourcesApi';
 import useDebouncedValue from '../../utils/useDebouncedValue';
 import ConfirmDialog from '../ConfirmDialog';
@@ -44,6 +45,7 @@ export default function DeliverablesPanel({ project, onChanged }) {
   const [message, setMessage] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [view, setView] = useState('list');
+  const [critical, setCritical] = useState(() => new Set());
 
   const filtered = Boolean(search || filters.status || filters.assignee || filters.blocked || filters.overdue);
   // The list is loading while the shown result belongs to an older request
@@ -80,6 +82,15 @@ export default function DeliverablesPanel({ project, onChanged }) {
     let cancelled = false;
     listDeliverables({ project_id: project.id })
       .then((result) => !cancelled && setAll(result))
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [project.id, reloadKey]);
+
+  // Which deliverables are on the forecast's critical path (a missing forecast just means no chips)
+  useEffect(() => {
+    let cancelled = false;
+    getForecast(project.id)
+      .then((forecast) => !cancelled && setCritical(criticalIds(forecast)))
       .catch(() => {});
     return () => { cancelled = true; };
   }, [project.id, reloadKey]);
@@ -127,6 +138,7 @@ export default function DeliverablesPanel({ project, onChanged }) {
         canDelete={canDelete}
         onOpen={openDeliverable}
         onDelete={setToDelete}
+        criticalIds={critical}
       />
     );
   }
@@ -157,7 +169,7 @@ export default function DeliverablesPanel({ project, onChanged }) {
       {view === 'list' && <DeliverableFilters filters={filters} people={people} onChange={setFilters} />}
       {result.error && <Alert severity="error">{result.error}</Alert>}
       {actionError && <Alert severity="error" onClose={() => setActionError(null)}>{actionError}</Alert>}
-      {view === 'list' ? content : <ChainView projectId={project.id} reloadKey={reloadKey} onOpen={openDeliverable} />}
+      {view === 'list' ? content : <ChainView projectId={project.id} reloadKey={reloadKey} onOpen={openDeliverable} criticalIds={critical} />}
 
       {dialog && (
         <DeliverableFormDialog

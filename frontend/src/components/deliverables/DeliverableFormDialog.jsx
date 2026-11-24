@@ -20,7 +20,11 @@ import DependencyEditor from './DependencyEditor';
 import DeliverableFlags from './DeliverableFlags';
 import { deliverableSummaryShape } from './deliverablePropTypes';
 
-const EMPTY = { title: '', description: '', status: 'not_started', due_date: '', assignee_resource_id: '' };
+const EMPTY = {
+  title: '', description: '', status: 'not_started', due_date: '', assignee_resource_id: '',
+  estimate_days: '', earliest_start: '', progress_pct: 0,
+};
+const ASSIGNEE_FIELDS = ['status', 'progress_pct'];
 
 function toFormValues(deliverable) {
   return Object.fromEntries(Object.keys(EMPTY).map((key) => [key, deliverable[key] ?? '']));
@@ -29,7 +33,7 @@ function toFormValues(deliverable) {
 /**
  * Create, edit or view a deliverable. With a deliverableId it loads the
  * deliverable and shows its dependencies; readOnly shows everything disabled;
- * statusOnly (the assignee) leaves only the status editable.
+ * statusOnly (the assignee) leaves only the status and progress editable.
  * onChanged is called after any save (including dependency changes).
  */
 export default function DeliverableFormDialog({
@@ -78,6 +82,9 @@ export default function DeliverableFormDialog({
       status: values.status,
       due_date: values.due_date || null,
       assignee_resource_id: values.assignee_resource_id === '' ? null : Number(values.assignee_resource_id),
+      estimate_days: values.estimate_days === '' ? null : Number(values.estimate_days),
+      earliest_start: values.earliest_start || null,
+      progress_pct: values.progress_pct === '' ? 0 : Number(values.progress_pct),
     };
     try {
       const saved = isEdit
@@ -102,13 +109,13 @@ export default function DeliverableFormDialog({
     onChange: setField(name),
     error: Boolean(errors[name]),
     helperText: errors[name],
-    disabled: saving || readOnly || (statusOnly && name !== 'status'),
+    disabled: saving || readOnly || (statusOnly && !ASSIGNEE_FIELDS.includes(name)),
     fullWidth: true,
   });
 
   let title = 'New deliverable';
   if (isEdit) title = readOnly ? 'Deliverable' : 'Edit deliverable';
-  if (statusOnly) title = 'Update status';
+  if (statusOnly) title = 'Update progress';
 
   return (
     <Dialog open={open} onClose={saving ? undefined : onClose} fullWidth maxWidth="sm" fullScreen={fullScreen}>
@@ -125,7 +132,7 @@ export default function DeliverableFormDialog({
               {deliverable && <DeliverableFlags isBlocked={deliverable.is_blocked} isOverdue={deliverable.is_overdue} />}
               <TextField label="Title" required autoFocus={!readOnly && !statusOnly} {...fieldProps('title')} />
               {statusOnly && (
-                <Alert severity="info">You are assigned to this deliverable, so you can update its status.</Alert>
+                <Alert severity="info">You are assigned to this deliverable, so you can update its status and progress.</Alert>
               )}
               <TextField label="Description" multiline minRows={2} {...fieldProps('description')} />
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -135,6 +142,22 @@ export default function DeliverableFormDialog({
                   ))}
                 </TextField>
                 <TextField label="Due date" type="date" {...fieldProps('due_date')} slotProps={{ inputLabel: { shrink: true } }} />
+              </Stack>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                <TextField
+                  label="Estimate (working days)"
+                  type="number"
+                  {...fieldProps('estimate_days')}
+                  helperText={errors.estimate_days ?? 'Duration, used for the forecast'}
+                  slotProps={{ htmlInput: { min: 1, max: 365, step: 1 } }}
+                />
+                <TextField label="Earliest start" type="date" {...fieldProps('earliest_start')} slotProps={{ inputLabel: { shrink: true } }} />
+                <TextField
+                  label="Progress %"
+                  type="number"
+                  {...fieldProps('progress_pct')}
+                  slotProps={{ htmlInput: { min: 0, max: 100, step: 5 } }}
+                />
               </Stack>
               <TextField label="Assignee" select {...fieldProps('assignee_resource_id')}>
                 <MenuItem value="">Unassigned</MenuItem>

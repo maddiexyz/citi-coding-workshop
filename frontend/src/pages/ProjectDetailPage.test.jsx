@@ -6,6 +6,7 @@ import renderWithProviders from '../test/renderWithProviders';
 import { getProject } from '../services/projectsApi';
 
 vi.mock('../services/projectsApi', () => ({ getProject: vi.fn() }));
+vi.mock('../components/forecast/ForecastCard', () => ({ default: () => <p>forecast card</p> }));
 vi.mock('../components/deliverables/DeliverablesPanel', () => ({ default: () => <p>deliverables panel</p> }));
 vi.mock('../components/allocations/AllocationsPanel', () => ({ default: () => <p>allocations panel</p> }));
 vi.mock('../components/budget/BudgetPanel', () => ({ default: () => <p>budget panel</p> }));
@@ -29,6 +30,7 @@ describe('ProjectDetailPage', () => {
     expect(screen.getByText('The new site')).toBeInTheDocument();
     expect(screen.getByText('Not assigned')).toBeInTheDocument();
     expect(screen.getByText('1 / 4 (25%)')).toBeInTheDocument();
+    expect(screen.getByText('forecast card')).toBeInTheDocument();
   });
 
   it('hides Edit and Activity from viewers', async () => {

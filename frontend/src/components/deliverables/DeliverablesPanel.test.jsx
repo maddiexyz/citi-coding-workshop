@@ -6,6 +6,11 @@ import AuthContext from '../../auth/authContext';
 import DeliverablesPanel from './DeliverablesPanel';
 import { getDeliverable, listDeliverables, updateDeliverable } from '../../services/deliverablesApi';
 
+vi.mock('../../services/forecastApi', async (original) => ({
+  ...(await original()),
+  getForecast: vi.fn().mockResolvedValue({ items: [{ id: 1, critical: true }] }),
+}));
+
 vi.mock('../../services/resourcesApi', () => ({
   listResources: vi.fn().mockResolvedValue({ items: [], week_start: '2030-01-07' }),
 }));
@@ -47,6 +52,24 @@ describe('DeliverablesPanel', () => {
     expect(within(table).getByText('Overdue')).toBeInTheDocument();
   });
 
+  it('marks deliverables on the critical path and shows estimate and progress', async () => {
+    renderAs({ id: 7, role: 'project_manager' }, 1200, Promise.resolve([{ ...ITEMS[0], estimate_days: 5, progress_pct: 40 }]));
+    const table = await screen.findByRole('table', { name: 'Deliverables' });
+    expect(await within(table).findByText('Critical')).toBeInTheDocument();
+    expect(within(table).getByText('5 d')).toBeInTheDocument();
+    expect(within(table).getByText('40%')).toBeInTheDocument();
+  });
+
+  it('marks critical deliverables on mobile cards and in the chain view', async () => {
+    renderAs({ id: 7, role: 'project_manager' }, 400, Promise.resolve([{ ...ITEMS[0], estimate_days: 5, progress_pct: 40 }]));
+    const list = await screen.findByRole('list', { name: 'Deliverables' });
+    expect(await within(list).findByText('Critical')).toBeInTheDocument();
+    expect(within(list).getByText(/40% done of 5 d/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Chain' }));
+    const chain = await screen.findByRole('navigation', { name: 'Dependency chain' });
+    expect(within(chain).getByText('Critical')).toBeInTheDocument();
+  });
+
   it('lets the owning PM add and delete', async () => {
     renderAs({ id: 7, role: 'project_manager' });
     expect(await screen.findByRole('button', { name: 'Delete Spec' })).toBeInTheDocument();
@@ -67,20 +90,25 @@ describe('DeliverablesPanel', () => {
     expect(screen.queryByRole('button', { name: 'Delete Spec' })).not.toBeInTheDocument();
   });
 
-  it('lets the assignee update only the status of their deliverable', async () => {
-    const mine = { ...ITEMS[0], description: null, assignee_resource_id: 3, assignee_name: 'Vee' };
+  it('lets the assignee update only the status and progress of their deliverable', async () => {
+    const mine = { ...ITEMS[0], description: null, assignee_resource_id: 3, assignee_name: 'Vee', estimate_days: 6, progress_pct: 30 };
     getDeliverable.mockResolvedValue({ ...mine, predecessors: [], successors: [] });
     updateDeliverable.mockResolvedValue({ ...mine, status: 'done' });
     renderAs({ id: 9, role: 'viewer', resource_id: 3 }, 1200, Promise.resolve([mine]));
     expect(await screen.findByText('Vee (you)')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('row', { name: 'Open Spec' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Update status' });
+    const dialog = await screen.findByRole('dialog', { name: 'Update progress' });
     expect(await within(dialog).findByDisplayValue('Spec')).toBeDisabled();
     await userEvent.click(within(dialog).getByRole('combobox', { name: 'Status' }));
     await userEvent.click(screen.getByRole('option', { name: 'Done' }));
+    expect(within(dialog).getByLabelText('Estimate (working days)')).toBeDisabled();
+    expect(within(dialog).getByLabelText('Earliest start')).toBeDisabled();
+    await userEvent.clear(within(dialog).getByLabelText('Progress %'));
+    await userEvent.type(within(dialog).getByLabelText('Progress %'), '80');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
     expect(updateDeliverable).toHaveBeenCalledWith(1, {
       title: 'Spec', description: null, status: 'done', due_date: '2026-01-01', assignee_resource_id: 3,
+      estimate_days: 6, earliest_start: null, progress_pct: 80,
     });
   });
 

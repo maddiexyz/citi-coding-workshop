@@ -35,13 +35,18 @@ function DeleteButton({ deliverable, onDelete }) {
   );
 }
 
+const NONE = new Set();
+const progress = (item) => `${item.progress_pct ?? 0}%`;
+const estimate = (item) => (item.estimate_days ? `${item.estimate_days} d` : '—');
+
 DeleteButton.propTypes = { deliverable: deliverableShape.isRequired, onDelete: PropTypes.func.isRequired };
 
 /**
  * Deliverables as a table (desktop) or cards (mobile). Selecting one opens it;
- * the delete button only shows when canDelete is true.
+ * the delete button only shows when canDelete is true. Deliverables whose id
+ * is in criticalIds get a "Critical" chip (they set the forecast end).
  */
-export default function DeliverableList({ deliverables, isDesktop, canDelete, onOpen, onDelete }) {
+export default function DeliverableList({ deliverables, isDesktop, canDelete, onOpen, onDelete, criticalIds = NONE }) {
   const you = useYou();
   const assignee = (item) => you.resource(item.assignee_resource_id, item.assignee_name);
   if (!isDesktop) {
@@ -58,8 +63,10 @@ export default function DeliverableList({ deliverables, isDesktop, canDelete, on
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                   {assignee(item) ?? 'Unassigned'} · Due {formatDate(item.due_date)}
                   {item.predecessor_count > 0 && ` · depends on ${item.predecessor_count}`}
+                  {` · ${progress(item)} done`}
+                  {item.estimate_days ? ` of ${estimate(item)}` : ''}
                 </Typography>
-                <DeliverableFlags isBlocked={item.is_blocked} isOverdue={item.is_overdue} />
+                <DeliverableFlags isBlocked={item.is_blocked} isOverdue={item.is_overdue} isCritical={criticalIds.has(item.id)} />
               </CardContent>
             </CardActionArea>
             {canDelete && (
@@ -82,6 +89,8 @@ export default function DeliverableList({ deliverables, isDesktop, canDelete, on
             <TableCell>Status</TableCell>
             <TableCell>Assignee</TableCell>
             <TableCell>Due</TableCell>
+            <TableCell>Estimate</TableCell>
+            <TableCell>Progress</TableCell>
             <TableCell>Depends on</TableCell>
             <TableCell>Flags</TableCell>
             {canDelete && <TableCell align="right">Actions</TableCell>}
@@ -102,8 +111,12 @@ export default function DeliverableList({ deliverables, isDesktop, canDelete, on
               <TableCell><StatusChip status={item.status} statuses={DELIVERABLE_STATUSES} /></TableCell>
               <TableCell>{assignee(item) ?? '—'}</TableCell>
               <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(item.due_date)}</TableCell>
+              <TableCell sx={{ whiteSpace: 'nowrap' }}>{estimate(item)}</TableCell>
+              <TableCell>{progress(item)}</TableCell>
               <TableCell>{item.predecessor_count || '—'}</TableCell>
-              <TableCell><DeliverableFlags isBlocked={item.is_blocked} isOverdue={item.is_overdue} /></TableCell>
+              <TableCell>
+                <DeliverableFlags isBlocked={item.is_blocked} isOverdue={item.is_overdue} isCritical={criticalIds.has(item.id)} />
+              </TableCell>
               {canDelete && (
                 <TableCell align="right"><DeleteButton deliverable={item} onDelete={onDelete} /></TableCell>
               )}
@@ -121,4 +134,5 @@ DeliverableList.propTypes = {
   canDelete: PropTypes.bool.isRequired,
   onOpen: PropTypes.func.isRequired,
   onDelete: PropTypes.func.isRequired,
+  criticalIds: PropTypes.instanceOf(Set),
 };
