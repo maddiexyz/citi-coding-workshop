@@ -13,12 +13,13 @@ Routes (served at /api/deliverables; every route needs a Bearer token):
 
 Deliverable fields: title, description, status, due_date, assignee_resource_id.
 "blocked" and "overdue" are computed by the deliverable_details view.
-Who may change what is decided in common.permissions.
+Who may change what is decided in common.permissions; every change is
+written to the audit log in the same transaction.
 """
 
 from psycopg import errors
 
-from common import db
+from common import audit, db
 from common.auth import require_auth
 from common.http import ApiError, Request, json_response, make_handler, parse_bool, parse_id
 from common.permissions import can_delete_deliverables, can_edit_deliverables
@@ -139,17 +140,20 @@ def create_deliverable(request: Request) -> dict:
     data = validate_deliverable(request.json(), creating=True)
     project = load_project(data["project_id"], missing_status=400)
     require_edit(request, project)
-    row = db.fetch_one(
-        """
-        INSERT INTO deliverables (project_id, title, description, status, due_date, assignee_resource_id,
-                                  completed_at, created_by)
-        VALUES (%(project_id)s, %(title)s, %(description)s, %(status)s::deliverable_status, %(due_date)s,
-                %(assignee_resource_id)s, CASE WHEN %(status)s::deliverable_status = 'done' THEN now() END,
-                %(created_by)s)
-        RETURNING id
-        """,
-        {**data, "created_by": request.user.id},
-    )
+    with db.transaction():
+        row = db.fetch_one(
+            """
+            INSERT INTO deliverables (project_id, title, description, status, due_date, assignee_resource_id,
+                                      completed_at, created_by)
+            VALUES (%(project_id)s, %(title)s, %(description)s, %(status)s::deliverable_status, %(due_date)s,
+                    %(assignee_resource_id)s, CASE WHEN %(status)s::deliverable_status = 'done' THEN now() END,
+                    %(created_by)s)
+            RETURNING *
+            """,
+            {**data, "created_by": request.user.id},
+        )
+        audit.record(request.user, "create", "deliverable", row["id"], project_id=row["project_id"], new=row,
+                     summary=f"Created deliverable {row['title']}")
     return json_response(201, with_dependencies(find_deliverable(row["id"])))
 
 
@@ -159,17 +163,23 @@ def update_deliverable(request: Request, deliverable_id: str) -> dict:
     deliverable = find_deliverable(parse_id(deliverable_id, "Deliverable id"))
     require_edit(request, load_project(deliverable["project_id"]))
     data = validate_deliverable(request.json(), creating=False)
-    db.execute(
-        """
-        UPDATE deliverables
-        SET title = %(title)s, description = %(description)s, status = %(status)s::deliverable_status,
-            due_date = %(due_date)s, assignee_resource_id = %(assignee_resource_id)s,
-            completed_at = CASE WHEN %(status)s::deliverable_status = 'done' THEN COALESCE(completed_at, now()) END,
-            updated_at = now()
-        WHERE id = %(id)s
-        """,
-        {**data, "id": deliverable["id"]},
-    )
+    with db.transaction():
+        before = db.fetch_one("SELECT * FROM deliverables WHERE id = %s", (deliverable["id"],))
+        after = db.fetch_one(
+            """
+            UPDATE deliverables
+            SET title = %(title)s, description = %(description)s, status = %(status)s::deliverable_status,
+                due_date = %(due_date)s, assignee_resource_id = %(assignee_resource_id)s,
+                completed_at = CASE WHEN %(status)s::deliverable_status = 'done'
+                                    THEN COALESCE(completed_at, now()) END,
+                updated_at = now()
+            WHERE id = %(id)s
+            RETURNING *
+            """,
+            {**data, "id": deliverable["id"]},
+        )
+        audit.record(request.user, "update", "deliverable", deliverable["id"], project_id=deliverable["project_id"],
+                     old=before, new=after, summary=f"Updated deliverable {after['title']}")
     return json_response(200, with_dependencies(find_deliverable(deliverable["id"])))
 
 
@@ -179,7 +189,12 @@ def delete_deliverable(request: Request, deliverable_id: str) -> dict:
     deliverable = find_deliverable(parse_id(deliverable_id, "Deliverable id"))
     if not can_delete_deliverables(request.user, load_project(deliverable["project_id"])):
         raise ApiError(403, "forbidden", "Only an admin or the project's manager can delete deliverables")
-    db.execute("DELETE FROM deliverables WHERE id = %s", (deliverable["id"],))
+    with db.transaction():
+        old = db.fetch_one("DELETE FROM deliverables WHERE id = %s RETURNING *", (deliverable["id"],))
+        audit.record(request.user, "delete", "deliverable", deliverable["id"], project_id=deliverable["project_id"],
+                     old=old,
+                     details={"dependency_links": deliverable["predecessor_count"] + deliverable["successor_count"]},
+                     summary=f"Deleted deliverable {deliverable['title']}")
     return json_response(204)
 
 
@@ -243,6 +258,10 @@ def add_dependency(request: Request, deliverable_id: str) -> dict:
                                {"depends_on_id": " → ".join(titles[i] for i in cycle), "cycle": cycle})
             db.execute("INSERT INTO deliverable_dependencies (deliverable_id, depends_on_id) VALUES (%s, %s)",
                        (deliverable["id"], depends_on_id))
+            audit.record(request.user, "create", "dependency", deliverable["id"],
+                         project_id=deliverable["project_id"],
+                         new={"deliverable_id": deliverable["id"], "depends_on_id": depends_on_id},
+                         summary=f"{deliverable['title']} now depends on #{depends_on_id}")
     except errors.UniqueViolation as exc:
         raise ApiError(409, "conflict", "This dependency already exists",
                        {"depends_on_id": "Already a dependency"}) from exc
@@ -254,12 +273,17 @@ def remove_dependency(request: Request, deliverable_id: str, depends_on_id: str)
     """Remove a dependency link."""
     deliverable = find_deliverable(parse_id(deliverable_id, "Deliverable id"))
     require_edit(request, load_project(deliverable["project_id"]))
-    removed = db.execute(
-        "DELETE FROM deliverable_dependencies WHERE deliverable_id = %s AND depends_on_id = %s",
-        (deliverable["id"], parse_id(depends_on_id, "Dependency id")),
-    )
-    if not removed:
-        raise ApiError(404, "not_found", "Dependency not found")
+    other_id = parse_id(depends_on_id, "Dependency id")
+    with db.transaction():
+        removed = db.execute(
+            "DELETE FROM deliverable_dependencies WHERE deliverable_id = %s AND depends_on_id = %s",
+            (deliverable["id"], other_id),
+        )
+        if not removed:
+            raise ApiError(404, "not_found", "Dependency not found")
+        audit.record(request.user, "delete", "dependency", deliverable["id"], project_id=deliverable["project_id"],
+                     old={"deliverable_id": deliverable["id"], "depends_on_id": other_id},
+                     summary=f"{deliverable['title']} no longer depends on #{other_id}")
     return json_response(204)
 
 

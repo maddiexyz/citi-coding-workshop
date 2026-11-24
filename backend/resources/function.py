@@ -19,7 +19,7 @@ from decimal import Decimal
 
 from psycopg import errors
 
-from common import db
+from common import audit, db
 from common.auth import require_auth
 from common.http import ApiError, Request, json_response, make_handler, parse_bool, parse_id
 from common.permissions import can_manage_resources
@@ -189,15 +189,18 @@ def create_resource(request: Request) -> dict:
     require_admin(request)
     data = validate_resource(request.json())
     try:
-        row = db.fetch_one(
-            """
-            INSERT INTO resources (full_name, email, department, title, user_id, weekly_hours, is_active)
-            VALUES (%(full_name)s, %(email)s, %(department)s, %(title)s, %(user_id)s, %(weekly_hours)s,
-                    %(is_active)s)
-            RETURNING id
-            """,
-            data,
-        )
+        with db.transaction():
+            row = db.fetch_one(
+                """
+                INSERT INTO resources (full_name, email, department, title, user_id, weekly_hours, is_active)
+                VALUES (%(full_name)s, %(email)s, %(department)s, %(title)s, %(user_id)s, %(weekly_hours)s,
+                        %(is_active)s)
+                RETURNING *
+                """,
+                data,
+            )
+            audit.record(request.user, "create", "resource", row["id"], new=row,
+                         summary=f"Added {row['full_name']}")
     except errors.UniqueViolation as exc:
         raise unique_error(exc) from exc
     return json_response(201, find_resource(row["id"]))
@@ -210,16 +213,21 @@ def update_resource(request: Request, resource_id: str) -> dict:
     resource = find_resource(parse_id(resource_id, "Resource id"))
     data = validate_resource(request.json())
     try:
-        db.execute(
-            """
-            UPDATE resources
-            SET full_name = %(full_name)s, email = %(email)s, department = %(department)s, title = %(title)s,
-                user_id = %(user_id)s, weekly_hours = %(weekly_hours)s, is_active = %(is_active)s,
-                updated_at = now()
-            WHERE id = %(id)s
-            """,
-            {**data, "id": resource["id"]},
-        )
+        with db.transaction():
+            before = db.fetch_one("SELECT * FROM resources WHERE id = %s", (resource["id"],))
+            after = db.fetch_one(
+                """
+                UPDATE resources
+                SET full_name = %(full_name)s, email = %(email)s, department = %(department)s, title = %(title)s,
+                    user_id = %(user_id)s, weekly_hours = %(weekly_hours)s, is_active = %(is_active)s,
+                    updated_at = now()
+                WHERE id = %(id)s
+                RETURNING *
+                """,
+                {**data, "id": resource["id"]},
+            )
+            audit.record(request.user, "update", "resource", resource["id"], old=before, new=after,
+                         summary=f"Updated {after['full_name']}")
     except errors.UniqueViolation as exc:
         raise unique_error(exc) from exc
     return json_response(200, find_resource(resource["id"]))
@@ -231,7 +239,10 @@ def delete_resource(request: Request, resource_id: str) -> dict:
     require_admin(request)
     resource = find_resource(parse_id(resource_id, "Resource id"))
     try:
-        db.execute("DELETE FROM resources WHERE id = %s", (resource["id"],))
+        with db.transaction():
+            old = db.fetch_one("DELETE FROM resources WHERE id = %s RETURNING *", (resource["id"],))
+            audit.record(request.user, "delete", "resource", resource["id"], old=old,
+                         summary=f"Deleted {resource['full_name']}")
     except (errors.ForeignKeyViolation, errors.RestrictViolation) as exc:
         raise ApiError(409, "conflict", "This resource still has allocations: remove them or deactivate it",
                        {"allocations": "Remove the allocations or set the resource inactive"}) from exc

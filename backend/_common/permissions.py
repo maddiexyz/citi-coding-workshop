@@ -17,6 +17,14 @@ Resources (people and their weekly capacity; everyone may read):
 
 Allocations of resource hours to a project (everyone may read):
 - admin and the owning project manager: create, edit, delete
+
+Budgets (everyone may read a project's budget summary):
+- admin and the owning project manager: see spend entries, add and edit them,
+  and set the planned budget
+- admin only: delete spend entries, and delete a project that has any
+  (the owning PM should set its status to cancelled instead)
+
+Audit log: admin sees everything; the owning PM sees their projects' history.
 """
 
 from typing import Any
@@ -73,4 +81,26 @@ def can_manage_resources(user: Any) -> bool:
 
 def can_manage_allocations(user: Any, project: dict) -> bool:
     """Return True if the user may create, edit or delete allocations on the project."""
+    return owns_project(user, project)
+
+
+def can_delete_project(user: Any, project: dict, has_budget_entries: bool) -> bool:
+    """Return True if the user may delete the project (admin only once it has spend entries)."""
+    if user.role == ADMIN:
+        return True
+    return can_change_project(user, project) and not has_budget_entries
+
+
+def can_manage_budget(user: Any, project: dict) -> bool:
+    """Return True if the user may see and change a project's spend entries and planned budget."""
+    return owns_project(user, project)
+
+
+def can_delete_budget_entries(user: Any) -> bool:
+    """Return True if the user may delete spend entries (admin only)."""
+    return user.role == ADMIN
+
+
+def can_read_project_audit(user: Any, project: dict) -> bool:
+    """Return True if the user may read a project's change history."""
     return owns_project(user, project)

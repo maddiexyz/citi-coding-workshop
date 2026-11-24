@@ -125,7 +125,7 @@ def empty_projects(request):
     """Start every database test with no projects or resources (and so nothing that hangs off them)."""
     if "users" in request.fixturenames:
         request.getfixturevalue("users")  # make sure the database exists first
-        db.execute("TRUNCATE projects, resources RESTART IDENTITY CASCADE")
+        db.execute("TRUNCATE projects, resources, audit_log RESTART IDENTITY CASCADE")
 
 
 @pytest.fixture(scope="session")
@@ -162,3 +162,15 @@ def resources_service():
 def allocations_service():
     """The allocations service module."""
     return load_service("allocations")
+
+
+@pytest.fixture(scope="session")
+def budget_service():
+    """The budget service module."""
+    return load_service("budget")
+
+
+@pytest.fixture(scope="session")
+def audit_service():
+    """The audit service module."""
+    return load_service("audit")

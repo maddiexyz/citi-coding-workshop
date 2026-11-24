@@ -15,6 +15,8 @@ Rules:
 - one allocation per resource per project per period: an overlap is 409;
 - going over the resource's weekly capacity is allowed: the response lists
   the affected weeks in "warnings" (over-allocation is flagged, never blocked).
+
+Every change is written to the audit log in the same transaction.
 """
 
 from datetime import date
@@ -22,7 +24,7 @@ from decimal import Decimal
 
 from psycopg import errors
 
-from common import db
+from common import audit, db
 from common.auth import require_auth
 from common.http import ApiError, Request, json_response, make_handler, parse_id
 from common.permissions import can_manage_allocations
@@ -162,14 +164,18 @@ def create_allocation(request: Request) -> dict:
     require_manage(request, project)
     data = validate_allocation(body, project)
     try:
-        row = db.fetch_one(
-            """
-            INSERT INTO allocations (project_id, resource_id, hours_per_week, start_date, end_date, note)
-            VALUES (%(project_id)s, %(resource_id)s, %(hours_per_week)s, %(start_date)s, %(end_date)s, %(note)s)
-            RETURNING id
-            """,
-            {**data, "project_id": project["id"]},
-        )
+        with db.transaction():
+            row = db.fetch_one(
+                """
+                INSERT INTO allocations (project_id, resource_id, hours_per_week, start_date, end_date, note)
+                VALUES (%(project_id)s, %(resource_id)s, %(hours_per_week)s, %(start_date)s, %(end_date)s,
+                        %(note)s)
+                RETURNING *
+                """,
+                {**data, "project_id": project["id"]},
+            )
+            audit.record(request.user, "create", "allocation", row["id"], project_id=project["id"], new=row,
+                         summary="Allocated a person to the project")
     except errors.ExclusionViolation as exc:
         raise overlap_error() from exc
     return saved_response(201, row["id"])
@@ -183,15 +189,20 @@ def update_allocation(request: Request, allocation_id: str) -> dict:
     require_manage(request, project)
     data = validate_allocation(request.json(), project)
     try:
-        db.execute(
-            """
-            UPDATE allocations
-            SET resource_id = %(resource_id)s, hours_per_week = %(hours_per_week)s, start_date = %(start_date)s,
-                end_date = %(end_date)s, note = %(note)s, updated_at = now()
-            WHERE id = %(id)s
-            """,
-            {**data, "id": allocation["id"]},
-        )
+        with db.transaction():
+            before = db.fetch_one("SELECT * FROM allocations WHERE id = %s", (allocation["id"],))
+            after = db.fetch_one(
+                """
+                UPDATE allocations
+                SET resource_id = %(resource_id)s, hours_per_week = %(hours_per_week)s,
+                    start_date = %(start_date)s, end_date = %(end_date)s, note = %(note)s, updated_at = now()
+                WHERE id = %(id)s
+                RETURNING *
+                """,
+                {**data, "id": allocation["id"]},
+            )
+            audit.record(request.user, "update", "allocation", allocation["id"], project_id=project["id"],
+                         old=before, new=after, summary=f"Updated allocation for {allocation['resource_name']}")
     except errors.ExclusionViolation as exc:
         raise overlap_error() from exc
     return saved_response(200, allocation["id"])
@@ -202,7 +213,10 @@ def delete_allocation(request: Request, allocation_id: str) -> dict:
     """Delete an allocation."""
     allocation = find_allocation(parse_id(allocation_id, "Allocation id"))
     require_manage(request, load_project(allocation["project_id"]))
-    db.execute("DELETE FROM allocations WHERE id = %s", (allocation["id"],))
+    with db.transaction():
+        old = db.fetch_one("DELETE FROM allocations WHERE id = %s RETURNING *", (allocation["id"],))
+        audit.record(request.user, "delete", "allocation", allocation["id"], project_id=allocation["project_id"],
+                     old=old, summary=f"Removed {allocation['resource_name']} from the project")
     return json_response(204)
 
 

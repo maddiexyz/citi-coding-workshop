@@ -108,7 +108,8 @@ class Validator:
         self.clean[name] = value
         return value
 
-    def number(self, name: str, *, required: bool = False, greater_than: Optional[Decimal] = None,
+    def number(self, name: str, *, required: bool = False,  # pylint: disable=too-many-arguments
+               greater_than: Optional[Decimal] = None, minimum: Optional[Decimal] = None,
                maximum: Optional[Decimal] = None, places: int = 2,
                default: Optional[Decimal] = None) -> Optional[Decimal]:
         """
@@ -136,6 +137,8 @@ class Validator:
             self.add_error(name, f"Use at most {places} decimal places")
         elif greater_than is not None and number <= greater_than:
             self.add_error(name, f"Must be greater than {greater_than}")
+        elif minimum is not None and number < minimum:
+            self.add_error(name, f"Must be at least {minimum}")
         elif maximum is not None and number > maximum:
             self.add_error(name, f"Must be at most {maximum}")
         self.clean[name] = number

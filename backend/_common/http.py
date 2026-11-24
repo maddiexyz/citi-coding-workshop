@@ -102,7 +102,7 @@ def parse_request(event: dict) -> Request:
     )
 
 
-def _json_default(value: Any) -> str:
+def json_default(value: Any) -> str:
     """Serialize dates as ISO 8601 and decimals as exact strings (never floats)."""
     if isinstance(value, (date, datetime)):
         return value.isoformat()
@@ -124,7 +124,7 @@ def json_response(status: int, body: Any = None) -> dict:
     """
     response = {"statusCode": status, "headers": {"Content-Type": "application/json"}}
     if body is not None:
-        response["body"] = json.dumps(body, default=_json_default)
+        response["body"] = json.dumps(body, default=json_default)
     return response
 
 

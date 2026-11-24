@@ -83,3 +83,14 @@ variable "aws_eks_type" {
     error_message = "The aws_eks_type variable must be either 'ON_DEMAND' or 'SPOT'."
   }
 }
+
+variable "app_currency" {
+  description = "ISO 4217 currency code used to display budget amounts (display only, no conversion). Default: USD."
+  type        = string
+  default     = "USD"
+
+  validation {
+    condition     = can(regex("^[A-Z]{3}$", var.app_currency))
+    error_message = "The app_currency variable must be a three-letter ISO 4217 code such as USD or EUR."
+  }
+}

@@ -2,22 +2,28 @@
 Projects service: list, read, create, update and delete projects.
 
 Routes (served at /api/projects; every route needs a Bearer token):
-Project fields: code, name, description, status, start_date, end_date, team_lead_id.
     GET    /             ?status=active&q=text -> {"items": [...]}
     GET    /{id}                               -> project
     POST   /             project fields        -> 201 project
     PUT    /{id}         project fields        -> project
     DELETE /{id}                               -> 204
 
-Who may change what is decided in common.permissions.
+Project fields: code, name, description, status, start_date, end_date,
+team_lead_id, budget_planned. Budget figures (actual_spend, remaining,
+burn_pct, over_budget) are computed by the project_details view.
+
+Who may change what is decided in common.permissions; every change is
+written to the audit log in the same transaction.
 """
+
+from decimal import Decimal
 
 from psycopg import errors
 
-from common import db
+from common import audit, db
 from common.auth import require_auth
 from common.http import ApiError, Request, json_response, make_handler, parse_id
-from common.permissions import can_change_project, can_create_project
+from common.permissions import can_change_project, can_create_project, can_delete_project
 from common.validation import Validator
 
 PROJECT_STATUSES = ("planned", "active", "on_hold", "completed", "cancelled")
@@ -30,7 +36,7 @@ def validate_project(data: dict) -> dict:
 
     Returns:
         Cleaned values: code (uppercased), name, description, status, start_date,
-        end_date, team_lead_id.
+        end_date, team_lead_id, budget_planned.
 
     Raises:
         ApiError: 400 with a message per invalid field.
@@ -45,6 +51,7 @@ def validate_project(data: dict) -> dict:
     end_date = validator.date("end_date")
     if start_date and end_date and end_date < start_date:
         validator.add_error("end_date", "End date must be on or after the start date")
+    validator.number("budget_planned", minimum=Decimal(0), maximum=Decimal("9999999999.99"))
     team_lead_id = validator.integer("team_lead_id")
     if team_lead_id and not db.fetch_one(
             "SELECT 1 FROM users WHERE id = %s AND role = 'team_lead' AND is_active", (team_lead_id,)):
@@ -95,6 +102,11 @@ def get_project(_request: Request, project_id: str) -> dict:
     return json_response(200, find_project(parse_id(project_id, "Project id")))
 
 
+def project_row(project_id: int) -> dict:
+    """The stored project record (without computed fields), as written to the audit log."""
+    return db.fetch_one("SELECT * FROM projects WHERE id = %s", (project_id,))
+
+
 @require_auth
 def create_project(request: Request) -> dict:
     """Create a project owned by the current user."""
@@ -102,15 +114,19 @@ def create_project(request: Request) -> dict:
         raise ApiError(403, "forbidden", "Your role cannot create projects")
     data = validate_project(request.json())
     try:
-        row = db.fetch_one(
-            """
-            INSERT INTO projects (code, name, description, status, start_date, end_date, team_lead_id, owner_id)
-            VALUES (%(code)s, %(name)s, %(description)s, %(status)s, %(start_date)s, %(end_date)s,
-                    %(team_lead_id)s, %(owner_id)s)
-            RETURNING id
-            """,
-            {**data, "owner_id": request.user.id},
-        )
+        with db.transaction():
+            row = db.fetch_one(
+                """
+                INSERT INTO projects (code, name, description, status, start_date, end_date, team_lead_id,
+                                      budget_planned, owner_id)
+                VALUES (%(code)s, %(name)s, %(description)s, %(status)s, %(start_date)s, %(end_date)s,
+                        %(team_lead_id)s, %(budget_planned)s, %(owner_id)s)
+                RETURNING *
+                """,
+                {**data, "owner_id": request.user.id},
+            )
+            audit.record(request.user, "create", "project", row["id"], project_id=row["id"], new=row,
+                         summary=f"Created project {row['code']}")
     except errors.UniqueViolation as exc:
         raise duplicate_code_error() from exc
     return json_response(201, find_project(row["id"]))
@@ -118,22 +134,27 @@ def create_project(request: Request) -> dict:
 
 @require_auth
 def update_project(request: Request, project_id: str) -> dict:
-    """Replace a project's editable fields (only admin or the owning PM, so only they set the team lead)."""
+    """Replace a project's editable fields (only admin or the owning PM, so only they set the team lead and budget)."""
     project = find_project(parse_id(project_id, "Project id"))
     if not can_change_project(request.user, project):
         raise ApiError(403, "forbidden", "You can only edit projects you own")
     data = validate_project(request.json())
     try:
-        db.execute(
-            """
-            UPDATE projects
-            SET code = %(code)s, name = %(name)s, description = %(description)s, status = %(status)s,
-                start_date = %(start_date)s, end_date = %(end_date)s, team_lead_id = %(team_lead_id)s,
-                updated_at = now()
-            WHERE id = %(id)s
-            """,
-            {**data, "id": project["id"]},
-        )
+        with db.transaction():
+            before = project_row(project["id"])
+            after = db.fetch_one(
+                """
+                UPDATE projects
+                SET code = %(code)s, name = %(name)s, description = %(description)s, status = %(status)s,
+                    start_date = %(start_date)s, end_date = %(end_date)s, team_lead_id = %(team_lead_id)s,
+                    budget_planned = %(budget_planned)s, updated_at = now()
+                WHERE id = %(id)s
+                RETURNING *
+                """,
+                {**data, "id": project["id"]},
+            )
+            audit.record(request.user, "update", "project", project["id"], project_id=project["id"],
+                         old=before, new=after, summary=f"Updated project {after['code']}")
     except errors.UniqueViolation as exc:
         raise duplicate_code_error() from exc
     return json_response(200, find_project(project["id"]))
@@ -141,11 +162,38 @@ def update_project(request: Request, project_id: str) -> dict:
 
 @require_auth
 def delete_project(request: Request, project_id: str) -> dict:
-    """Delete a project."""
+    """
+    Delete a project and everything under it.
+
+    Once a project has spend entries only an admin may delete it; the owning
+    PM should set its status to cancelled instead. The audit entry keeps the
+    project and what was removed with it.
+    """
     project = find_project(parse_id(project_id, "Project id"))
     if not can_change_project(request.user, project):
         raise ApiError(403, "forbidden", "You can only delete projects you own")
-    db.execute("DELETE FROM projects WHERE id = %s", (project["id"],))
+    if not can_delete_project(request.user, project, project["budget_entry_count"] > 0):
+        raise ApiError(403, "forbidden",
+                       "This project has budget entries: only an admin can delete it. "
+                       "Set its status to cancelled instead")
+    with db.transaction():
+        removed = {
+            "deliverables": db.fetch_all(
+                "SELECT id, title, status FROM deliverables WHERE project_id = %s ORDER BY id", (project["id"],)),
+            "dependencies": db.fetch_one(
+                "SELECT count(*) AS n FROM deliverable_dependencies dep"
+                " JOIN deliverables d ON d.id = dep.deliverable_id WHERE d.project_id = %s", (project["id"],))["n"],
+            "allocations": db.fetch_all(
+                "SELECT id, resource_id, hours_per_week, start_date, end_date FROM allocations"
+                " WHERE project_id = %s ORDER BY id", (project["id"],)),
+            "budget_entries": db.fetch_all(
+                "SELECT id, category, amount, spent_on, description FROM budget_entries"
+                " WHERE project_id = %s ORDER BY id", (project["id"],)),
+        }
+        old = project_row(project["id"])
+        db.execute("DELETE FROM projects WHERE id = %s", (project["id"],))
+        audit.record(request.user, "delete", "project", project["id"], project_id=project["id"], old=old,
+                     details=removed, summary=f"Deleted project {project['code']}")
     return json_response(204)
 
 
