@@ -1,11 +1,11 @@
 """Deliverables: CRUD, validation, computed flags, permissions and dependency rules."""
 
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pytest
 
 from _common import db
-from conftest import call
+from conftest import call, db_today
 
 
 def make_project(projects_service, owner, code="DEL-1", team_lead_id=None, **extra):
@@ -74,7 +74,7 @@ def test_ids_must_be_ascii_numbers(deliverables_service, users):
 def test_list_filters(deliverables_service, projects_service, users, project):
     token = users["pm"]["token"]
     other = make_project(projects_service, users["pm"], code="DEL-2")
-    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    yesterday = (db_today() - timedelta(days=1)).isoformat()
     late = make_deliverable(deliverables_service, token, project["id"], "Late report", due_date=yesterday)
     make_deliverable(deliverables_service, token, project["id"], "Finished", status="done", due_date=yesterday)
     make_deliverable(deliverables_service, token, other["id"], "Other project task")
@@ -88,7 +88,7 @@ def test_list_filters(deliverables_service, projects_service, users, project):
     assert titles({"overdue": "true"}) == ["Late report"]
     assert titles({"status": "done"}) == ["Finished"]
     assert titles({"q": "report"}) == ["Late report"]
-    assert titles({"due_before": date.today().isoformat(), "project_id": str(project["id"])}) == \
+    assert titles({"due_before": db_today().isoformat(), "project_id": str(project["id"])}) == \
         ["Finished", "Late report"]
     assert late["is_overdue"] is True
     for bad in ({"status": "x"}, {"blocked": "yes"}, {"due_before": "soon"}, {"project_id": "x"}):

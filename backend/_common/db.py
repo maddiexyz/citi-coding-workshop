@@ -7,6 +7,7 @@ All queries take parameters separately from the SQL text (psycopg ``%s`` /
 
 import os
 from contextlib import contextmanager
+from datetime import date
 from typing import Any, Iterator, Optional
 
 import psycopg
@@ -61,6 +62,17 @@ def _run(sql: str, params: Any) -> psycopg.Cursor:
         # Connection lost (e.g. database restarted): reconnect on the next call
         _connection = None
         raise
+
+
+def today() -> date:
+    """
+    Today's date by the database clock.
+
+    "Overdue", "late" and "this week" are decided by SQL (current_date) in
+    views and queries, so Python code asks the database too: one clock,
+    whatever time zone the Lambda or the developer's machine is in.
+    """
+    return fetch_one("SELECT current_date AS today")["today"]
 
 
 def fetch_one(sql: str, params: Any = None) -> Optional[dict]:

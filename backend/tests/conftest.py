@@ -195,3 +195,8 @@ def audit_service():
 def dashboard_service():
     """The dashboard service module."""
     return load_service("dashboard")
+
+
+def db_today():
+    """Today by the database clock, which decides overdue/late (see _common.db.today)."""
+    return db.today()

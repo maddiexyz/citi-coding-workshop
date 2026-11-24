@@ -62,7 +62,7 @@ def evaluate(project_ids: Optional[list[int]] = None) -> list[dict]:
     Args:
         project_ids: Limit to these projects (default: every evaluated project).
     """
-    today = date.today()
+    today = db.today()
     week = today - timedelta(days=today.weekday())
     projects = db.fetch_all(
         """

@@ -74,7 +74,7 @@ def require_admin(request: Request) -> None:
 
 def find_resource(resource_id: int) -> dict:
     """Load one resource (with the linked user's name and this week's load) or raise 404."""
-    this_week = week_start(date.today())
+    this_week = week_start(db.today())
     row = db.fetch_one(
         """
         SELECT r.*, u.full_name AS user_name,
@@ -102,7 +102,7 @@ def unique_error(exc: errors.UniqueViolation) -> ApiError:
 def list_resources(request: Request) -> dict:
     """List resources with their load in one week (default: this week)."""
     query = request.query
-    week = week_start(parse_date_param("week", query.get("week"), date.today()))
+    week = week_start(parse_date_param("week", query.get("week"), db.today()))
     text = (query.get("q") or "").strip()
     items = db.fetch_all(
         """
@@ -148,7 +148,7 @@ def get_resource(_request: Request, resource_id: str) -> dict:
 def get_load(request: Request, resource_id: str) -> dict:
     """Hours allocated per week between from and to (default: this week and the next 7)."""
     resource = find_resource(parse_id(resource_id, "Resource id"))
-    first = week_start(parse_date_param("from", request.query.get("from"), date.today()))
+    first = week_start(parse_date_param("from", request.query.get("from"), db.today()))
     last = week_start(parse_date_param("to", request.query.get("to"),
                                        first + timedelta(weeks=DEFAULT_LOAD_WEEKS - 1)))
     if last < first or (last - first).days // 7 >= MAX_LOAD_WEEKS:

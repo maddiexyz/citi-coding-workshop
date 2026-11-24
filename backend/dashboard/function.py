@@ -10,7 +10,7 @@ Routes (served at /api/dashboard; every route needs a Bearer token):
 All figures are computed at query time (see common.risk); nothing is stored.
 """
 
-from datetime import date, timedelta
+from datetime import timedelta
 
 from common import db, risk
 from common.auth import require_auth
@@ -23,7 +23,7 @@ SEVERITIES = ("high", "medium")
 @require_auth
 def get_summary(_request: Request) -> dict:
     """Counts for the summary cards."""
-    today = date.today()
+    today = db.today()
     week = today - timedelta(days=today.weekday())
     evaluated = risk.evaluate()
     by_status = db.fetch_all(
