@@ -330,6 +330,9 @@ fi
 # Apply database migrations and seed the admin user (ADMIN_EMAIL / ADMIN_PASSWORD)
 "$SCRIPT_DIR/migrate.sh" || { echo -e "  ✗ Database migrations failed"; exit 1; }
 
+# Copy shared backend code (backend/_common) into each Python service
+"$SCRIPT_DIR/sync-common.sh"
+
 # Install pip requirements into each Python service directory for hot-reload
 # Skip if requirements.txt hasn't changed since last install (avoids slow PyPI lookups)
 shopt -s nullglob

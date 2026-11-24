@@ -256,3 +256,12 @@ tfplan
 
 # Snyk Security Extension - AI Rules (auto-generated)
 .github/instructions/snyk_rules.instructions.md
+
+# Backend services: bin/start-dev.sh installs pip dependencies into each
+# service folder (LocalStack hot reload runs the folder as-is) and
+# bin/sync-common.sh copies backend/_common in as common/. Only the files at
+# the top of a service folder are source code.
+backend/*/*/
+!backend/_*/*/
+backend/*/.pip_installed
+backend/*/typing_extensions.py

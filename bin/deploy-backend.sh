@@ -85,6 +85,9 @@ else
     fi
 fi
 
+# Copy shared backend code into each Python service before packaging
+"$SCRIPT_DIR/sync-common.sh"
+
 # Initialize Terraform with backend configuration
 if [ -n "$PARTICIPANT_ID" ]; then
     echo "INFO: Using custom backend configuration..."
