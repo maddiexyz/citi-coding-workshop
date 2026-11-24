@@ -4,7 +4,7 @@
 - [x] A. Deliverables + dependencies
 - [x] B. Resources + allocations + over-allocation
 - [x] C. Audit log, then budget
-- [ ] D. At-risk dashboard + user management + auth hardening
+- [x] D. At-risk dashboard + user management + auth hardening
 - [ ] E. Hardening (coverage, Cypress, Artillery, accessibility, README, compliance, reproducibility)
 
 ## Context

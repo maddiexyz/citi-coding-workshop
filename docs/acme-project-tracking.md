@@ -6,7 +6,8 @@ enforced by the backend and every change kept in an audit log.
 
 Built so far: Increment 1 (sign-in, projects), Increment A (deliverables,
 dependencies, project team lead), Increment B (people, allocations,
-over-allocation) and Increment C (audit log, budgets). Plan and progress: [PLAN.md](./PLAN.md).
+over-allocation), Increment C (audit log, budgets) and Increment D (at-risk
+dashboard, user management, refresh tokens, sign-in rate limiting). Plan and progress: [PLAN.md](./PLAN.md).
 
 ## Run locally
 
@@ -63,6 +64,11 @@ cd frontend && npm test
 tests/acceptance/increment_a.sh
 tests/acceptance/increment_b.sh
 tests/acceptance/increment_c.sh
+tests/acceptance/increment_d.sh
+
+# Sign-in, refresh cookie and sign-out against the deployed site
+# (asks for an account's email and password; nothing is stored)
+tests/acceptance/cloud_auth_check.sh
 ```
 
 ## How it fits together
@@ -72,10 +78,12 @@ tests/acceptance/increment_c.sh
 | Schema | `backend/_db/migrations/*.sql` | Applied once each, tracked in `schema_migrations`: locally by `bin/migrate.sh` (psql), in AWS by the `backend/_migrate` Lambda (`bin/migrate-cloud.sh`) |
 | Admin seed | `backend/_db/seed_admin.sql`, `backend/_migrate` | Reads `ADMIN_EMAIL` / `ADMIN_PASSWORD`; never overwrites an existing user |
 | Shared backend code | `backend/_common/` | Routing, JSON errors, DB, JWT, bcrypt, permissions, validation |
-| Auth service | `backend/auth/` → `/api/auth` | `POST /login`, `GET /me` |
+| Auth service | `backend/auth/` → `/api/auth` | `POST /login`, `POST /refresh`, `POST /logout`, `GET /me`; rate limiting |
 | Projects service | `backend/projects/` → `/api/projects` | CRUD with `?status=` and `?q=` filters; `team_lead_id`; progress counts |
 | Deliverables service | `backend/deliverables/` → `/api/deliverables` | CRUD with `?project_id&status&blocked&overdue&due_before&q`; `/{id}/dependencies` |
-| Users service | `backend/users/` → `/api/users` | `GET ?role&active&q` for pickers (admin, project managers) |
+| Users service | `backend/users/` → `/api/users` | Admin CRUD, `PUT /{id}/password`; `GET ?role&active&q` also for project managers (pickers) |
+| Dashboard service | `backend/dashboard/` → `/api/dashboard` | `GET /summary`, `GET /at-risk?q&flag&severity` (everyone) |
+| At-risk logic | `backend/_common/risk.py` | Risk signals computed at query time |
 | Resources service | `backend/resources/` → `/api/resources` | People: CRUD (admin), `?q&department&active&over_allocated&week`, `/{id}/load?from&to` |
 | Allocations service | `backend/allocations/` → `/api/allocations` | Hours per week on a project: CRUD (admin, owning PM), `?project_id&resource_id&active_on` |
 | Budget service | `backend/budget/` → `/api/budget` | `GET /summary?project_id` (everyone); spend entries CRUD (admin, owning PM; delete admin) with `?category&from&to&q` |
@@ -90,12 +98,14 @@ Lambda at `/api/<folder>`. A Lambda only contains its own folder, so
 
 ### Roles
 
-| Role | Projects | Deliverables and dependencies | People | Allocations | Budget | Activity (audit) |
-| --- | --- | --- | --- | --- | --- | --- |
-| admin | Create, edit and delete any project | Everything | Create, edit, delete | Everything | Everything, including deleting spend | Everything |
-| project_manager | Create; edit projects they own (team lead, planned budget); delete them only while they have no spend | Everything in projects they own | Read | In projects they own | In projects they own: summary, spend entries, record and edit (not delete) | Projects they own |
-| team_lead | Read only | In projects where they are the team lead: create, edit, change status and manage dependencies; **not** delete | Read | Read | Summary only | — |
-| viewer | Read only | Read only | Read | Read | Summary only | — |
+| Role | Projects | Deliverables and dependencies | People | Allocations | Budget | Activity (audit) | Users |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| admin | Create, edit and delete any project | Everything | Create, edit, delete | Everything | Everything, including deleting spend | Everything | Create, edit roles, deactivate, reset passwords, delete |
+| project_manager | Create; edit projects they own (team lead, planned budget); delete them only while they have no spend | Everything in projects they own | Read | In projects they own | In projects they own: summary, spend entries, record and edit (not delete) | Projects they own | — (pickers only) |
+| team_lead | Read only | In projects where they are the team lead: create, edit, change status and manage dependencies; **not** delete | Read | Read | Summary only | — | — |
+| viewer | Read only | Read only | Read | Read | Summary only | — | — |
+
+Everyone signed in sees the dashboard.
 
 Every signed-in user can read everything. The user is re-read from the
 database on every request, so deactivating a user or changing a role takes
@@ -171,6 +181,49 @@ fails, the change is rolled back. Deleting a project keeps a snapshot of the
 project and what was removed with it (deliverables, dependency count,
 allocations, spend entries). The project's **Activity** tab shows it.
 
+### Dashboard and at-risk projects
+
+The dashboard (the home page) shows active projects, how many are at risk or
+over budget, overdue and blocked deliverables, and who is over-allocated
+this week. "Projects needing attention" lists each flagged project with the
+reasons. Only active projects, and planned ones whose start date has
+passed, are evaluated. Signals (computed at query time, never stored):
+
+| Signal | Fires when | Severity |
+| --- | --- | --- |
+| late | past its end date and not completed or cancelled | high |
+| overdue_deliverable | a deliverable is past its due date and not done | medium |
+| schedule_slip | % of deliverables done lags % of time elapsed by more than `AT_RISK_SLIP_POINTS` (default 20); skipped without deliverables, without an end date, or before the start | medium |
+| blocked_due_soon | a blocked deliverable is due within 7 days | medium |
+| over_allocated_resource | someone allocated to it this week is over capacity | medium |
+
+**Over budget is a separate flag**, shown next to the at-risk flag, not a
+reason for it.
+
+### Sign-in, sessions and users
+
+- **Access token:** a 15-minute JWT in the `Authorization` header, kept in
+  `sessionStorage`. Every request re-reads the user, so deactivation and role
+  changes apply immediately.
+- **Refresh token:** a random token in the `acme_refresh` cookie
+  (`HttpOnly; Secure; SameSite=Strict; Path=/api/auth`, 12 hours), stored
+  only as a SHA-256 hash and rotated on every use. When the access token
+  expires, the app refreshes once and retries; a new tab or a reload restores
+  the session from the cookie. `/refresh` re-reads the account (deactivated
+  users are refused, the current role is used); `/logout` revokes the token
+  and clears the cookie.
+- **Rate limiting:** after 5 failed sign-ins for one email, or 20 from one IP,
+  within 15 minutes, further attempts get `429 rate_limited` with
+  `Retry-After` (also for unknown emails, so it reveals nothing). The IP
+  comes from `CloudFront-Viewer-Address`, never from `X-Forwarded-For`,
+  which a browser can forge.
+- **User management (admin):** create users with an initial password (at
+  least 10 characters), change role and active, reset passwords, delete.
+  An admin can't change their own role, deactivate or delete themselves;
+  users who own projects can't be deleted (reassign or deactivate). Role
+  changes, deactivation and password resets revoke the user's sessions.
+  Password data never appears in responses or the audit log.
+
 ### Deleting
 
 Deleting a project also deletes its deliverables, dependencies, allocations
@@ -180,17 +233,19 @@ status to *completed* or *cancelled*; use delete only to remove mistakes.
 
 ## Trade-offs and known gaps
 
-- **Access tokens only (30 minutes), no refresh token yet** (planned in
-  Increment D). When a token expires, the next request returns 401 and the UI
-  asks the user to sign in again.
-- **Token in `sessionStorage`.** It is cleared when the tab closes and readable
-  by scripts on the page, so XSS protection matters (React escapes output by
-  default).
+- **Access token in `sessionStorage`.** Readable by scripts on the page, so
+  XSS protection matters (React escapes output by default); it is short-lived
+  (15 minutes) and the long-lived refresh token is in an HttpOnly cookie.
+- **No reuse detection for refresh tokens** (stretch goal): a stolen,
+  already-rotated token is refused, but its use doesn't revoke the rest of
+  that user's sessions.
 - **Two migration runners.** `bin/migrate.sh` (psql, local) and the
   `backend/_migrate` Lambda (AWS) apply the same files with the same
   bookkeeping. The Lambda exists only because Aurora is not reachable from
   outside the VPC.
-- **No user management screen yet** (Increment D).
+- **Rate-limit IP behind CloudFront** relies on the `CloudFront-Viewer-Address`
+  header; if it isn't forwarded, the per-IP limit counts CloudFront's address
+  (the per-email limit still applies).
 - **Single currency.** Amounts are shown in one configured currency with no
   conversion; multi-currency budgets are out of scope.
 - **Audit log grows forever** (no retention policy yet) and records changes
