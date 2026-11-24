@@ -7,6 +7,7 @@ import { getProject } from '../services/projectsApi';
 
 vi.mock('../services/projectsApi', () => ({ getProject: vi.fn() }));
 vi.mock('../components/forecast/ForecastCard', () => ({ default: () => <p>forecast card</p> }));
+vi.mock('../components/forecast/TimelinePanel', () => ({ default: () => <p>timeline panel</p> }));
 vi.mock('../components/deliverables/DeliverablesPanel', () => ({ default: () => <p>deliverables panel</p> }));
 vi.mock('../components/allocations/AllocationsPanel', () => ({ default: () => <p>allocations panel</p> }));
 vi.mock('../components/budget/BudgetPanel', () => ({ default: () => <p>budget panel</p> }));

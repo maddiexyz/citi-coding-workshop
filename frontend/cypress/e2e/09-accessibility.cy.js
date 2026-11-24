@@ -27,7 +27,7 @@ const visitIn = (mode, path) => {
         cy.checkPage();
       });
       cy.get('@project').then((project) => {
-        ['overview', 'deliverables', 'allocations', 'budget', 'activity'].forEach((tab) => {
+        ['overview', 'deliverables', 'timeline', 'allocations', 'budget', 'activity'].forEach((tab) => {
           visitIn(mode, `/projects/${project.id}?tab=${tab}`);
           cy.get('[role="tabpanel"]').should('be.visible');
           cy.get('[aria-label^="Loading"]').should('not.exist');
