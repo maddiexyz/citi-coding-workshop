@@ -6,6 +6,39 @@ resource "aws_cloudfront_origin_access_control" "this" {
   signing_protocol                  = "sigv4"
 }
 
+# API cache policy. CloudFront only sends the Authorization header to the
+# origin if it is part of the cache key, and the managed CachingDisabled policy
+# cannot include headers (all TTLs 0). So: Authorization and all query strings
+# in the key, default TTL 0 and a 1-second maximum. The Lambdas send no
+# Cache-Control header, so nothing is cached, and even if it were, the token in
+# the key keeps one user's response from being served to another.
+resource "aws_cloudfront_cache_policy" "api" {
+  count       = data.aws_caller_identity.this.id != "000000000000" ? 1 : 0
+  name        = format("%s-api-%s", var.aws_project, local.app_id)
+  comment     = "API routes: forward Authorization, no caching"
+  min_ttl     = 0
+  default_ttl = 0
+  max_ttl     = 1
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    enable_accept_encoding_brotli = false
+    enable_accept_encoding_gzip   = false
+
+    cookies_config {
+      cookie_behavior = "none"
+    }
+    headers_config {
+      header_behavior = "whitelist"
+      headers {
+        items = ["Authorization"]
+      }
+    }
+    query_strings_config {
+      query_string_behavior = "all"
+    }
+  }
+}
+
 resource "aws_cloudfront_distribution" "this" {
   count               = data.aws_caller_identity.this.id != "000000000000" ? 1 : 0
   enabled             = true
@@ -62,8 +95,8 @@ resource "aws_cloudfront_distribution" "this" {
       cached_methods         = ["GET", "HEAD"]
       viewer_protocol_policy = "redirect-to-https"
 
-      # Use managed cache policy for no caching (ID: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad)
-      cache_policy_id = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+      # Pass the Authorization header through without caching (see aws_cloudfront_cache_policy.api)
+      cache_policy_id = element(aws_cloudfront_cache_policy.api.*.id, count.index)
 
       # Use managed origin request policy - AllViewerExceptHostHeader
       # This forwards all viewer headers EXCEPT Host, so Lambda Function URLs get the correct Host header
