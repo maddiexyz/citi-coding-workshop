@@ -358,7 +358,8 @@ def forecasts(spec: dict, today: date = REFERENCE_TODAY) -> dict:
     return results
 
 
-def expected_flags(spec: dict, today: date = REFERENCE_TODAY) -> dict:  # pylint: disable=too-many-locals,too-many-branches
+# pylint: disable-next=too-many-locals,too-many-branches
+def expected_flags(spec: dict, today: date = REFERENCE_TODAY) -> dict:
     """
     Apply the app's dashboard rules to the spec (today = 0, this week = the
     days around today), for the seeded projects only. ``today`` only matters

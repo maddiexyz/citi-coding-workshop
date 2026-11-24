@@ -6,6 +6,7 @@
 - [x] C. Audit log, then budget
 - [x] D. At-risk dashboard + user management + auth hardening
 - [x] E. Hardening (coverage, Cypress, Artillery, accessibility, README, compliance, reproducibility); cloud load run and cloud sign-in check left for the owner
+- [x] F. v2.0 completion-date forecasting (estimates and progress, critical-path forecast, confidence, SPI, late-forecast risk, list column, Timeline tab, seeded demo): see `changes/phaseF.md`; cloud reseed left for the owner
 
 ## Context
 Increments 1 and 1.5 are done and deployed: sign-in, projects CRUD with RBAC, and the AWS deploy.
