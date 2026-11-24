@@ -95,12 +95,13 @@ def database():
 
 @pytest.fixture(scope="session")
 def users(database):  # pylint: disable=redefined-outer-name,unused-argument
-    """One user per role, plus a second project manager and an inactive user."""
+    """One user per role, a second project manager and team lead, and an inactive user."""
     people = {
         "admin": ("admin@acme.test", "admin"),
         "pm": ("pm@acme.test", "project_manager"),
         "other_pm": ("other.pm@acme.test", "project_manager"),
         "team_lead": ("lead@acme.test", "team_lead"),
+        "other_lead": ("other.lead@acme.test", "team_lead"),
         "viewer": ("viewer@acme.test", "viewer"),
     }
     password_hash = hash_password("Passw0rd!")
@@ -121,10 +122,10 @@ def users(database):  # pylint: disable=redefined-outer-name,unused-argument
 
 @pytest.fixture(autouse=True)
 def empty_projects(request):
-    """Start every database test with no projects."""
+    """Start every database test with no projects (and so no deliverables)."""
     if "users" in request.fixturenames:
         request.getfixturevalue("users")  # make sure the database exists first
-        db.execute("TRUNCATE projects RESTART IDENTITY")
+        db.execute("TRUNCATE projects RESTART IDENTITY CASCADE")
 
 
 @pytest.fixture(scope="session")
@@ -137,3 +138,15 @@ def auth_service():
 def projects_service():
     """The projects service module."""
     return load_service("projects")
+
+
+@pytest.fixture(scope="session")
+def deliverables_service():
+    """The deliverables service module."""
+    return load_service("deliverables")
+
+
+@pytest.fixture(scope="session")
+def users_service():
+    """The users service module."""
+    return load_service("users")
