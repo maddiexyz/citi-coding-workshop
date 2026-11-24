@@ -17,6 +17,7 @@ accept_cleanup() {
   "${PSQL[@]}" -c "DELETE FROM projects WHERE code LIKE 'ACC-%'" \
                -c "DELETE FROM resources WHERE full_name LIKE 'Accept %'" \
                -c "DELETE FROM audit_log WHERE actor_name LIKE 'Accept %'" \
+               -c "DELETE FROM login_attempts WHERE email_lower LIKE 'accept-%' OR email_lower LIKE 'nobody-%'" \
                -c "DELETE FROM users WHERE email LIKE 'accept-%@acme.test'" > /dev/null 2>&1
   rm -rf "$TMP"
 }
@@ -34,6 +35,7 @@ user_id() { "${PSQL[@]}" -c "SELECT id FROM users WHERE email = 'accept-$1@acme.
 req() {
   local args=(-s -o "$TMP/body" -w "%{http_code}" -X "$1" "$BASE$2")
   [ -n "$3" ] && args+=(-H "Authorization: Bearer $3")
+  [ -n "${JAR:-}" ] && args+=(-b "$JAR" -c "$JAR" -D "$TMP/headers")
   [ -n "${4:-}" ] && args+=(-H "Content-Type: application/json" --data-binary "$4")
   CODE="$(curl "${args[@]}")"
 }
