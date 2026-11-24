@@ -1,12 +1,12 @@
 # ACME Project Tracking
 
-Sign in, then manage projects, their deliverables (with dependencies) and
-the people allocated to them, with role-based permissions enforced by the
-backend.
+Sign in, then manage projects, their deliverables (with dependencies), the
+people allocated to them and their budgets, with role-based permissions
+enforced by the backend and every change kept in an audit log.
 
 Built so far: Increment 1 (sign-in, projects), Increment A (deliverables,
-dependencies, project team lead) and Increment B (people, allocations,
-over-allocation). Plan and progress: [PLAN.md](./PLAN.md).
+dependencies, project team lead), Increment B (people, allocations,
+over-allocation) and Increment C (audit log, budgets). Plan and progress: [PLAN.md](./PLAN.md).
 
 ## Run locally
 
@@ -62,6 +62,7 @@ cd frontend && npm test
 # (creates throwaway accept-*@acme.test users and removes them afterwards)
 tests/acceptance/increment_a.sh
 tests/acceptance/increment_b.sh
+tests/acceptance/increment_c.sh
 ```
 
 ## How it fits together
@@ -77,6 +78,9 @@ tests/acceptance/increment_b.sh
 | Users service | `backend/users/` → `/api/users` | `GET ?role&active&q` for pickers (admin, project managers) |
 | Resources service | `backend/resources/` → `/api/resources` | People: CRUD (admin), `?q&department&active&over_allocated&week`, `/{id}/load?from&to` |
 | Allocations service | `backend/allocations/` → `/api/allocations` | Hours per week on a project: CRUD (admin, owning PM), `?project_id&resource_id&active_on` |
+| Budget service | `backend/budget/` → `/api/budget` | `GET /summary?project_id` (everyone); spend entries CRUD (admin, owning PM; delete admin) with `?category&from&to&q` |
+| Audit service | `backend/audit/` → `/api/audit` | Change history `?project_id&entity_type&entity_id&actor&from&to&limit` (admin; owning PM for their project) |
+| Audit helper | `backend/_common/audit.py` | `audit.record(...)` inside `db.transaction()` next to every write |
 | Frontend | `frontend/src/` | `services/` API calls, `auth/` session and rules, `pages/`, `components/` |
 
 Each folder directly under `backend/` with a `requirements.txt` becomes its own
@@ -86,12 +90,12 @@ Lambda at `/api/<folder>`. A Lambda only contains its own folder, so
 
 ### Roles
 
-| Role | Projects | Deliverables and dependencies | People | Allocations |
-| --- | --- | --- | --- | --- |
-| admin | Create, edit and delete any project | Everything | Create, edit, delete | Everything |
-| project_manager | Create; edit and delete only projects they own, including choosing the team lead | Everything in projects they own | Read | In projects they own |
-| team_lead | Read only | In projects where they are the team lead: create, edit, change status and manage dependencies; **not** delete | Read | Read |
-| viewer | Read only | Read only | Read | Read |
+| Role | Projects | Deliverables and dependencies | People | Allocations | Budget | Activity (audit) |
+| --- | --- | --- | --- | --- | --- | --- |
+| admin | Create, edit and delete any project | Everything | Create, edit, delete | Everything | Everything, including deleting spend | Everything |
+| project_manager | Create; edit projects they own (team lead, planned budget); delete them only while they have no spend | Everything in projects they own | Read | In projects they own | In projects they own: summary, spend entries, record and edit (not delete) | Projects they own |
+| team_lead | Read only | In projects where they are the team lead: create, edit, change status and manage dependencies; **not** delete | Read | Read | Summary only | — |
+| viewer | Read only | Read only | Read | Read | Summary only | — |
 
 Every signed-in user can read everything. The user is re-read from the
 database on every request, so deactivating a user or changing a role takes
@@ -144,11 +148,35 @@ Every error has the same shape:
   instead. Inactive people can't get new allocations or deliverables.
 - Hours and other decimals are sent as strings (`"37.50"`), never floats.
 
+### Budget
+
+- Each project has one approved amount, `budget_planned`. Spend entries
+  record **actual** spend only, with a category (labor, software, hardware,
+  travel, other), an amount and a date. Labor is entered by hand; allocation
+  hours and budget money are independent.
+- Burn % = actual ÷ planned. The summary also shows the remaining amount,
+  an over-budget flag (actual > planned) and spend by category. With no
+  planned budget (empty or 0) it says *No budget set* instead of dividing by
+  zero. All of this is computed in the `project_details` view.
+- Amounts are `NUMERIC(12,2)`, sent as exact strings like `"1234.50"`, and
+  must be ≥ 0. One currency for the whole app (`app_currency` in Terraform,
+  default `USD`) is used for display only; there is no conversion.
+
+### Audit log
+
+Every create, update and delete through the API writes an `audit_log` entry
+**in the same transaction** as the change, with who did it, when, and the old
+and new values (only the changed fields for updates). If writing the entry
+fails, the change is rolled back. Deleting a project keeps a snapshot of the
+project and what was removed with it (deliverables, dependency count,
+allocations, spend entries). The project's **Activity** tab shows it.
+
 ### Deleting
 
-Deleting a project also deletes its deliverables and their dependencies. To
-retire a project, set its status to *completed* or *cancelled*; use delete
-only to remove mistakes.
+Deleting a project also deletes its deliverables, dependencies, allocations
+and spend entries; the confirmation lists them first. Once a project has
+spend entries only an admin can delete it. To retire a project, set its
+status to *completed* or *cancelled*; use delete only to remove mistakes.
 
 ## Trade-offs and known gaps
 
@@ -163,6 +191,10 @@ only to remove mistakes.
   bookkeeping. The Lambda exists only because Aurora is not reachable from
   outside the VPC.
 - **No user management screen yet** (Increment D).
+- **Single currency.** Amounts are shown in one configured currency with no
+  conversion; multi-currency budgets are out of scope.
+- **Audit log grows forever** (no retention policy yet) and records changes
+  made through the API only, not direct SQL.
 - **Partial weeks count in full** for over-allocation: a two-day allocation of
   20 h/week adds 20 h to that week. Simple and predictable, but it can flag a
   week that is really fine. Create other users with SQL, e.g.
