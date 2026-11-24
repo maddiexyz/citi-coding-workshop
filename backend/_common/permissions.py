@@ -11,6 +11,12 @@ Deliverables and their dependencies (everyone may read):
 - admin and the owning project manager: create, edit, delete
 - the project's assigned team lead (projects.team_lead_id): create and edit
   deliverables and manage dependencies, but not delete deliverables
+
+Resources (people and their weekly capacity; everyone may read):
+- admin only: create, edit, delete
+
+Allocations of resource hours to a project (everyone may read):
+- admin and the owning project manager: create, edit, delete
 """
 
 from typing import Any
@@ -57,4 +63,14 @@ def can_edit_deliverables(user: Any, project: dict) -> bool:
 
 def can_delete_deliverables(user: Any, project: dict) -> bool:
     """Return True if the user may delete deliverables in the project (not the team lead)."""
+    return owns_project(user, project)
+
+
+def can_manage_resources(user: Any) -> bool:
+    """Return True if the user may create, edit or delete resources (admin only)."""
+    return user.role == ADMIN
+
+
+def can_manage_allocations(user: Any, project: dict) -> bool:
+    """Return True if the user may create, edit or delete allocations on the project."""
     return owns_project(user, project)

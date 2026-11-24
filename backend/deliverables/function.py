@@ -2,7 +2,7 @@
 Deliverables service: deliverables of a project and the dependencies between them.
 
 Routes (served at /api/deliverables; every route needs a Bearer token):
-    GET    /        ?project_id&status&blocked&overdue&due_before&q -> {"items": [...]}
+    GET    /        ?project_id&status&blocked&overdue&due_before&assignee&q -> {"items": [...]}
     GET    /{id}                                   -> deliverable + predecessors + successors
     POST   /        deliverable fields + project_id -> 201 deliverable
     PUT    /{id}    deliverable fields              -> deliverable
@@ -11,7 +11,7 @@ Routes (served at /api/deliverables; every route needs a Bearer token):
     POST   /{id}/dependencies   {"depends_on_id"}   -> 201 deliverable
     DELETE /{id}/dependencies/{depends_on_id}       -> 204
 
-Deliverable fields: title, description, status, due_date.
+Deliverable fields: title, description, status, due_date, assignee_resource_id.
 "blocked" and "overdue" are computed by the deliverable_details view.
 Who may change what is decided in common.permissions.
 """
@@ -41,6 +41,9 @@ def validate_deliverable(data: dict, *, creating: bool) -> dict:
     validator.string("description", max_length=2000)
     validator.choice("status", STATUSES, default="not_started")
     validator.date("due_date")
+    assignee = validator.integer("assignee_resource_id")
+    if assignee and not db.fetch_one("SELECT 1 FROM resources WHERE id = %s AND is_active", (assignee,)):
+        validator.add_error("assignee_resource_id", "Must be an active resource")
     validator.raise_if_errors()
     return validator.clean
 
@@ -107,6 +110,7 @@ def list_deliverables(request: Request) -> dict:
           AND (%(blocked)s::boolean IS NULL OR is_blocked = %(blocked)s)
           AND (%(overdue)s::boolean IS NULL OR is_overdue = %(overdue)s)
           AND (%(due_before)s::date IS NULL OR due_date < %(due_before)s)
+          AND (%(assignee)s::bigint IS NULL OR assignee_resource_id = %(assignee)s)
           AND (%(search)s::text IS NULL OR title ILIKE %(search)s OR description ILIKE %(search)s)
         ORDER BY due_date NULLS LAST, id
         """,
@@ -116,6 +120,7 @@ def list_deliverables(request: Request) -> dict:
             "blocked": parse_bool("blocked", query.get("blocked")),
             "overdue": parse_bool("overdue", query.get("overdue")),
             "due_before": due_before,
+            "assignee": parse_id(query["assignee"], "Assignee id") if query.get("assignee") else None,
             "search": db.like_pattern(text) if text else None,
         },
     )
@@ -136,9 +141,11 @@ def create_deliverable(request: Request) -> dict:
     require_edit(request, project)
     row = db.fetch_one(
         """
-        INSERT INTO deliverables (project_id, title, description, status, due_date, completed_at, created_by)
+        INSERT INTO deliverables (project_id, title, description, status, due_date, assignee_resource_id,
+                                  completed_at, created_by)
         VALUES (%(project_id)s, %(title)s, %(description)s, %(status)s::deliverable_status, %(due_date)s,
-                CASE WHEN %(status)s::deliverable_status = 'done' THEN now() END, %(created_by)s)
+                %(assignee_resource_id)s, CASE WHEN %(status)s::deliverable_status = 'done' THEN now() END,
+                %(created_by)s)
         RETURNING id
         """,
         {**data, "created_by": request.user.id},
@@ -156,7 +163,7 @@ def update_deliverable(request: Request, deliverable_id: str) -> dict:
         """
         UPDATE deliverables
         SET title = %(title)s, description = %(description)s, status = %(status)s::deliverable_status,
-            due_date = %(due_date)s,
+            due_date = %(due_date)s, assignee_resource_id = %(assignee_resource_id)s,
             completed_at = CASE WHEN %(status)s::deliverable_status = 'done' THEN COALESCE(completed_at, now()) END,
             updated_at = now()
         WHERE id = %(id)s

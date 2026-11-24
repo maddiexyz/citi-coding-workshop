@@ -12,6 +12,7 @@ Usage::
 
 import re
 from datetime import date
+from decimal import Decimal, InvalidOperation
 from typing import Any, Callable, Iterable, Optional
 
 from .http import ApiError
@@ -104,6 +105,50 @@ class Validator:
         if value < minimum:
             self.add_error(name, f"Must be at least {minimum}")
             return None
+        self.clean[name] = value
+        return value
+
+    def number(self, name: str, *, required: bool = False, greater_than: Optional[Decimal] = None,
+               maximum: Optional[Decimal] = None, places: int = 2,
+               default: Optional[Decimal] = None) -> Optional[Decimal]:
+        """
+        Validate a decimal amount (JSON number or numeric string, e.g. "37.5").
+
+        Returns a Decimal, never a float, so money and hours stay exact.
+        """
+        value = self.data.get(name)
+        if value in (None, ""):
+            if required and default is None:
+                self.add_error(name, REQUIRED)
+            self.clean[name] = default
+            return default
+        if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+            self.add_error(name, "Must be a number")
+            return None
+        try:
+            number = Decimal(str(value).strip())
+        except InvalidOperation:
+            number = None
+        if number is None or not number.is_finite():
+            self.add_error(name, "Must be a number")
+            return None
+        if -number.as_tuple().exponent > places:
+            self.add_error(name, f"Use at most {places} decimal places")
+        elif greater_than is not None and number <= greater_than:
+            self.add_error(name, f"Must be greater than {greater_than}")
+        elif maximum is not None and number > maximum:
+            self.add_error(name, f"Must be at most {maximum}")
+        self.clean[name] = number
+        return number
+
+    def boolean(self, name: str, *, default: bool) -> bool:
+        """Validate an optional true/false field."""
+        value = self.data.get(name)
+        if value is None:
+            value = default
+        elif not isinstance(value, bool):
+            self.add_error(name, "Must be true or false")
+            return default
         self.clean[name] = value
         return value
 

@@ -122,10 +122,10 @@ def users(database):  # pylint: disable=redefined-outer-name,unused-argument
 
 @pytest.fixture(autouse=True)
 def empty_projects(request):
-    """Start every database test with no projects (and so no deliverables)."""
+    """Start every database test with no projects or resources (and so nothing that hangs off them)."""
     if "users" in request.fixturenames:
         request.getfixturevalue("users")  # make sure the database exists first
-        db.execute("TRUNCATE projects RESTART IDENTITY CASCADE")
+        db.execute("TRUNCATE projects, resources RESTART IDENTITY CASCADE")
 
 
 @pytest.fixture(scope="session")
@@ -150,3 +150,15 @@ def deliverables_service():
 def users_service():
     """The users service module."""
     return load_service("users")
+
+
+@pytest.fixture(scope="session")
+def resources_service():
+    """The resources service module."""
+    return load_service("resources")
+
+
+@pytest.fixture(scope="session")
+def allocations_service():
+    """The allocations service module."""
+    return load_service("allocations")
