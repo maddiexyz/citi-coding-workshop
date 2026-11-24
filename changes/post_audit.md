@@ -34,7 +34,10 @@ as the snapshot it was; this file tracks what changed since.
   fallback and reload button, the automatic reload happening only once,
   recovery on a new path, the recognised messages and the guard. ESLint is
   clean and the production build succeeds.
-- Not yet deployed: the cloud gets it with the next `bin/deploy-frontend.sh`.
+- Deployed 2026-11-25 with `bin/deploy-frontend.sh` (exit 0). The site
+  serves `index-UoH3M9it.js`, the same bundle as the local build, which
+  contains the boundary's "A new version of ACME Projects is available";
+  `/my-work` and `/dashboard` return 200.
 
 ## 2. Flaky dark-mode accessibility test
 - **Symptom:** in the audit's full E2E run, `09-accessibility › dark mode ›
@@ -57,7 +60,10 @@ as the snapshot it was; this file tracks what changed since.
     the mode before running axe.
 - **Verified:** `09-accessibility.cy.js` passed 5 runs out of 5 (4/4 tests
   each); `12-departments-and-theme.cy.js` passed; ESLint clean.
-- Not yet deployed: the cloud gets it with the next `bin/deploy-frontend.sh`.
+- Deployed 2026-11-25 with `bin/deploy-frontend.sh` (exit 0, 33 files
+  uploaded). After the CloudFront invalidation completed, the site serves
+  `index-DVj-q4LI.js`, the same bundle as the local build, containing
+  `noSsr:!0`; `/login` and `/my-work` return 200.
 
 ## 3. `details` in every error response
 - `error_response` in `backend/_common/http.py` (the one place every service
@@ -76,4 +82,8 @@ as the snapshot it was; this file tracks what changed since.
     bandit clean on `http.py`.
   - Locally (after `bin/sync-common.sh`), the audit's contract checks
     (`/tmp/audit/api_checks.sh`) now pass 27/27, up from 20/27.
-- Not yet deployed: the cloud gets it with the next `bin/deploy-backend.sh`.
+- Deployed 2026-11-25 with `bin/deploy-backend.sh` (exit 0). The plan
+  updated the 11 Lambda functions in place; the 33 replaced resources were
+  only their code packages; no migrations; admin seed skipped. In the cloud,
+  401s on `/api/projects`, `/api/projects/999999` and `/api/departments`,
+  and the 405 on `PATCH /api/projects/1`, all return `"details": {}`.
