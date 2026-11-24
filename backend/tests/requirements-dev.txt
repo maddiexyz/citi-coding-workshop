@@ -1,0 +1,6 @@
+# Local test dependencies (Python 3.11+). Install with:
+#   python3 -m venv backend/.venv && backend/.venv/bin/pip install -r backend/tests/requirements-dev.txt
+bcrypt==5.0.0
+psycopg[binary]>=3.2.10
+PyJWT==2.15.1
+pytest==8.4.2
