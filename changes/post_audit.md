@@ -6,7 +6,7 @@ as the snapshot it was; this file tracks what changed since.
 | # | Fix | Status |
 | --- | --- | --- |
 | 1 | React error boundary and recovery from failed chunk loads | Done (below) |
-| 2 | Flaky dark-mode accessibility test | Open |
+| 2 | Flaky dark-mode accessibility test | Done (below): root cause was a light flash on load |
 | 3 | Always send `details` in error responses | Open |
 | 4 | Release hygiene: tag after v1.0, section 4 of `phase1_1.md` | Done: `v1.1` tag on `f578680`; section 4 added |
 | 5 | Seeder falls back to `ADMIN_EMAIL` | Done: see `changes/seed_data.md` |
@@ -34,4 +34,27 @@ as the snapshot it was; this file tracks what changed since.
   fallback and reload button, the automatic reload happening only once,
   recovery on a new path, the recognised messages and the guard. ESLint is
   clean and the production build succeeds.
+- Not yet deployed: the cloud gets it with the next `bin/deploy-frontend.sh`.
+
+## 2. Flaky dark-mode accessibility test
+- **Symptom:** in the audit's full E2E run, `09-accessibility › dark mode ›
+  login page` failed with contrast 1.07:1 (`#070707` on `#121212`) on the
+  Email and Password labels, then passed on 3 reruns.
+- **Root cause (an app bug, not just the test):** with `colorSchemes` and
+  no CSS variables, MUI's ThemeProvider first renders the default (light)
+  scheme and switches to the stored mode in an effect, to suit server
+  rendering (`@mui/system/cssVars/useCurrentColorScheme.js`: `isClient` is
+  false until the effect runs). So every load in dark mode painted light
+  first, and the input labels' 200 ms colour transition was sometimes still
+  running when axe checked. Users saw the same light flash.
+- **Fix:** `noSsr` (this app only renders in the browser), set once in
+  `themeProviderProps` in `frontend/src/theme.js` and used by `main.jsx` and
+  the tests. The stored mode now applies from the first render.
+- **Test:**
+  - New `ColorModeToggle.test.jsx` case: with dark stored, no render may see
+    the light palette. It fails without `noSsr` (checked) and passes with it.
+  - The accessibility spec now also waits for the page background to match
+    the mode before running axe.
+- **Verified:** `09-accessibility.cy.js` passed 5 runs out of 5 (4/4 tests
+  each); `12-departments-and-theme.cy.js` passed; ESLint clean.
 - Not yet deployed: the cloud gets it with the next `bin/deploy-frontend.sh`.

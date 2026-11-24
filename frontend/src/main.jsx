@@ -7,11 +7,11 @@ import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
 import './index.css';
 import AuthProvider from './auth/AuthProvider';
-import theme from './theme';
+import theme, { themeProviderProps } from './theme';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <ThemeProvider theme={theme} defaultMode="system">
+    <ThemeProvider theme={theme} {...themeProviderProps}>
       <CssBaseline />
       <ErrorBoundary fullPage>
         <BrowserRouter>

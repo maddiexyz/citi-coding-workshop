@@ -1,5 +1,11 @@
 // Accessibility: no WCAG 2 A/AA violations found by axe on any page, in light and dark mode.
-const visitIn = (mode, path) => cy.visit(path, { onBeforeLoad: (win) => win.localStorage.setItem('mui-mode', mode) });
+// The stored mode is applied from the first render (noSsr in theme.js); the
+// background check makes sure axe looks at the scheme under test.
+const BACKGROUND = { light: 'rgb(255, 255, 255)', dark: 'rgb(18, 18, 18)' };
+const visitIn = (mode, path) => {
+  cy.visit(path, { onBeforeLoad: (win) => win.localStorage.setItem('mui-mode', mode) });
+  cy.get('body').should('have.css', 'background-color', BACKGROUND[mode]);
+};
 
 ['light', 'dark'].forEach((mode) => {
   describe(`Accessibility (axe, WCAG 2 A/AA) in ${mode} mode`, () => {

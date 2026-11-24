@@ -35,4 +35,13 @@ const theme = createTheme({
   shape: { borderRadius: 8 },
 });
 
+/**
+ * ThemeProvider settings shared by main.jsx and the tests. `noSsr`: this app
+ * only renders in the browser, so the stored mode is applied from the first
+ * render. Without it MUI first renders the default (light) scheme and
+ * switches in an effect, so dark-mode users saw a light flash on every load
+ * and colour transitions were still running when the page was checked.
+ */
+export const themeProviderProps = { defaultMode: 'system', noSsr: true };
+
 export default theme;

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ThemeProvider } from '@mui/material/styles';
+import { ThemeProvider, useTheme } from '@mui/material/styles';
 import ColorModeToggle from './ColorModeToggle';
-import theme from '../theme';
+import theme, { themeProviderProps } from '../theme';
 
 function renderToggle() {
-  return render(<ThemeProvider theme={theme} defaultMode="system"><ColorModeToggle /></ThemeProvider>);
+  return render(<ThemeProvider theme={theme} {...themeProviderProps}><ColorModeToggle /></ThemeProvider>);
 }
 
 describe('ColorModeToggle', () => {
@@ -30,5 +30,17 @@ describe('ColorModeToggle', () => {
     unmount();
     renderToggle();                                                        // a fresh page load
     expect(screen.getByRole('button')).toHaveAccessibleName('Colour theme: Dark. Switch to system');
+  });
+
+  it('renders a stored dark mode from the very first render (no light flash)', () => {
+    window.localStorage.setItem('mui-mode', 'dark');
+    const seen = [];
+    function Probe() {
+      seen.push(useTheme().palette.mode);
+      return null;
+    }
+    render(<ThemeProvider theme={theme} {...themeProviderProps}><Probe /></ThemeProvider>);
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((mode) => mode === 'dark')).toBe(true);
   });
 });
