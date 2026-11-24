@@ -25,9 +25,15 @@ def login(auth_service, email, password=PASSWORD, ip=None):
     return call_raw(auth_service, "POST", "/login", body={"email": email, "password": password}, headers=headers)
 
 
+def set_cookies(response):
+    """Every Set-Cookie value in a Lambda response (header or "cookies" list)."""
+    header = response["headers"].get("Set-Cookie")
+    return [*([header] if header else []), *response.get("cookies", [])]
+
+
 def refresh_cookie(response):
-    """The refresh token value from a response's Set-Cookie list."""
-    cookie = next(c for c in response["cookies"] if c.startswith("acme_refresh="))
+    """The refresh token value and full Set-Cookie for the refresh cookie."""
+    cookie = next(c for c in set_cookies(response) if c.startswith("acme_refresh="))
     return cookie.split(";")[0].split("=", 1)[1], cookie
 
 
@@ -52,7 +58,7 @@ def test_refresh_rotates_and_old_token_stops_working(auth_service, person):
 
     reused = call_raw(auth_service, "POST", "/refresh", cookies={"acme_refresh": token})
     assert reused["statusCode"] == 401
-    assert any(c.startswith("acme_refresh=;") and "Max-Age=0" in c for c in reused["cookies"])  # cleared
+    assert any(c.startswith("acme_refresh=;") and "Max-Age=0" in c for c in set_cookies(reused))  # cleared
     assert call_raw(auth_service, "POST", "/refresh", cookies={"acme_refresh": new_token})["statusCode"] == 200
 
 
@@ -87,7 +93,7 @@ def test_logout_revokes_the_token_and_clears_the_cookie(auth_service, person):
     token, _ = refresh_cookie(login(auth_service, person["email"]))
     response = call_raw(auth_service, "POST", "/logout", cookies={"acme_refresh": token})
     assert response["statusCode"] == 204
-    assert any("Max-Age=0" in c for c in response["cookies"])
+    assert any("Max-Age=0" in c for c in set_cookies(response))
     assert call(auth_service, "POST", "/refresh", cookies={"acme_refresh": token})[0] == 401
     assert call(auth_service, "POST", "/logout")[0] == 204   # without a cookie: still fine
 

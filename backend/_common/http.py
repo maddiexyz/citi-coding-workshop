@@ -161,7 +161,7 @@ def json_response(status: int, body: Any = None, *, headers: Optional[dict[str, 
         status: HTTP status code.
         body: Any JSON-serializable value, or None for an empty body (e.g. 204).
         headers: Extra response headers, e.g. Retry-After.
-        cookies: Set-Cookie values (Function URLs take them in a separate "cookies" list).
+        cookies: Set-Cookie values; one goes in the headers, several in the Function URL "cookies" list.
 
     Returns:
         A Lambda Function URL response dict.
@@ -169,7 +169,11 @@ def json_response(status: int, body: Any = None, *, headers: Optional[dict[str, 
     response = {"statusCode": status, "headers": {"Content-Type": "application/json", **(headers or {})}}
     if body is not None:
         response["body"] = json.dumps(body, default=json_default)
-    if cookies:
+    if cookies and len(cookies) == 1:
+        # One cookie as a plain header: AWS and LocalStack both pass it on
+        # (LocalStack ignores the "cookies" field)
+        response["headers"]["Set-Cookie"] = cookies[0]
+    elif cookies:
         response["cookies"] = cookies
     return response
 
