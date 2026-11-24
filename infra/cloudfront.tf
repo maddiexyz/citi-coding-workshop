@@ -39,6 +39,28 @@ resource "aws_cloudfront_cache_policy" "api" {
   }
 }
 
+# React routes such as /projects/12 have no file in S3 (the private bucket
+# answers 403). Serve index.html for any website path without a file
+# extension so reloads and deep links work. Only on the website behaviour:
+# /api/* goes to the Lambdas untouched.
+resource "aws_cloudfront_function" "spa_routes" {
+  count   = data.aws_caller_identity.this.id != "000000000000" ? 1 : 0
+  name    = format("%s-spa-routes-%s", var.aws_project, local.app_id)
+  runtime = "cloudfront-js-2.0"
+  comment = "Rewrite client-side routes to /index.html"
+  publish = true
+  code    = <<-EOT
+    function handler(event) {
+      var request = event.request;
+      var lastSegment = request.uri.substring(request.uri.lastIndexOf('/') + 1);
+      if (lastSegment.indexOf('.') === -1) {
+        request.uri = '/index.html';
+      }
+      return request;
+    }
+  EOT
+}
+
 resource "aws_cloudfront_distribution" "this" {
   count               = data.aws_caller_identity.this.id != "000000000000" ? 1 : 0
   enabled             = true
@@ -72,12 +94,9 @@ resource "aws_cloudfront_distribution" "this" {
     }
   }
 
-  custom_error_response {
-    error_code            = 404
-    error_caching_min_ttl = 300
-    response_code         = 200
-    response_page_path    = "/index.html"
-  }
+  # No custom_error_response: it applies to every origin, so it turned API
+  # 404s into 200 index.html. Client-side routes are rewritten by
+  # aws_cloudfront_function.spa_routes on the website behaviour instead.
 
   # logging_config {
   #   include_cookies = false
@@ -129,6 +148,11 @@ resource "aws_cloudfront_distribution" "this" {
 
     target_origin_id       = local.origin_id
     viewer_protocol_policy = "redirect-to-https"
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = element(aws_cloudfront_function.spa_routes.*.arn, count.index)
+    }
 
     forwarded_values {
       query_string = false
