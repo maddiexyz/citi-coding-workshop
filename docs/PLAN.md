@@ -1,7 +1,7 @@
 # ACME Project Tracker – plan for increments A–E
 
 ## Progress
-- [ ] A. Deliverables + dependencies
+- [x] A. Deliverables + dependencies
 - [ ] B. Resources + allocations + over-allocation
 - [ ] C. Audit log, then budget
 - [ ] D. At-risk dashboard + user management + auth hardening

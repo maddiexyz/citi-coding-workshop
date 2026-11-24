@@ -1,7 +1,10 @@
-# ACME Project Tracking – Increment 1
+# ACME Project Tracking
 
-Sign in, then list, filter, create, edit and delete projects, with
-role-based permissions enforced by the backend.
+Sign in, then manage projects and their deliverables (with dependencies),
+with role-based permissions enforced by the backend.
+
+Built so far: Increment 1 (sign-in, projects) and Increment A (deliverables,
+dependencies, project team lead). Plan and progress: [PLAN.md](./PLAN.md).
 
 ## Run locally
 
@@ -52,6 +55,10 @@ backend/.venv/bin/pytest backend/tests
 
 # Frontend
 cd frontend && npm test
+
+# Acceptance checks with curl against the running local stack
+# (creates throwaway accept-*@acme.test users and removes them afterwards)
+tests/acceptance/increment_a.sh
 ```
 
 ## How it fits together
@@ -62,7 +69,9 @@ cd frontend && npm test
 | Admin seed | `backend/_db/seed_admin.sql`, `backend/_migrate` | Reads `ADMIN_EMAIL` / `ADMIN_PASSWORD`; never overwrites an existing user |
 | Shared backend code | `backend/_common/` | Routing, JSON errors, DB, JWT, bcrypt, permissions, validation |
 | Auth service | `backend/auth/` → `/api/auth` | `POST /login`, `GET /me` |
-| Projects service | `backend/projects/` → `/api/projects` | CRUD with `?status=` and `?q=` filters |
+| Projects service | `backend/projects/` → `/api/projects` | CRUD with `?status=` and `?q=` filters; `team_lead_id`; progress counts |
+| Deliverables service | `backend/deliverables/` → `/api/deliverables` | CRUD with `?project_id&status&blocked&overdue&due_before&q`; `/{id}/dependencies` |
+| Users service | `backend/users/` → `/api/users` | `GET ?role&active&q` for pickers (admin, project managers) |
 | Frontend | `frontend/src/` | `services/` API calls, `auth/` session and rules, `pages/`, `components/` |
 
 Each folder directly under `backend/` with a `requirements.txt` becomes its own
@@ -72,12 +81,16 @@ Lambda at `/api/<folder>`. A Lambda only contains its own folder, so
 
 ### Roles
 
-| Role | Projects |
-| --- | --- |
-| admin | Create, edit and delete any project |
-| project_manager | Create; edit and delete only projects they own |
-| team_lead | Read only (for now) |
-| viewer | Read only |
+| Role | Projects | Deliverables and dependencies |
+| --- | --- | --- |
+| admin | Create, edit and delete any project | Everything |
+| project_manager | Create; edit and delete only projects they own, including choosing the team lead | Everything in projects they own |
+| team_lead | Read only | In projects where they are the team lead: create, edit, change status and manage dependencies; **not** delete |
+| viewer | Read only | Read only |
+
+Every signed-in user can read everything. The user is re-read from the
+database on every request, so deactivating a user or changing a role takes
+effect immediately, not when the token expires.
 
 Rules live in `backend/_common/permissions.py`. The UI mirrors them in
 `frontend/src/auth/permissions.js` only to hide buttons; every request is
@@ -92,11 +105,31 @@ Every error has the same shape:
              "details": { "end_date": "End date must be on or after the start date" } } }
 ```
 
+### Deliverables and dependencies
+
+- A deliverable belongs to one project; statuses are `not_started`,
+  `in_progress`, `done`, `cancelled`.
+- "A depends on B" means A cannot finish before B. Dependencies stay inside
+  one project. Adding one that would close a loop returns `409
+  dependency_cycle` with the loop, e.g. `C → A → B → C`; the check runs in a
+  transaction with the project row locked, so two people can't each add half
+  of a cycle.
+- **Computed, never stored:** *blocked* (a predecessor is not done or
+  cancelled), *overdue* (due date passed and not done or cancelled) and the
+  project's progress (done / total, ignoring cancelled). They live in the
+  `deliverable_details` and `project_details` views.
+
+### Deleting
+
+Deleting a project also deletes its deliverables and their dependencies. To
+retire a project, set its status to *completed* or *cancelled*; use delete
+only to remove mistakes.
+
 ## Trade-offs and known gaps
 
-- **Access tokens only (30 minutes), no refresh token.** When a token expires,
-  the next request returns 401 and the UI asks the user to sign in again. A role
-  change or deactivation takes effect when the token expires.
+- **Access tokens only (30 minutes), no refresh token yet** (planned in
+  Increment D). When a token expires, the next request returns 401 and the UI
+  asks the user to sign in again.
 - **Token in `sessionStorage`.** It is cleared when the tab closes and readable
   by scripts on the page, so XSS protection matters (React escapes output by
   default).
@@ -104,7 +137,7 @@ Every error has the same shape:
   `backend/_migrate` Lambda (AWS) apply the same files with the same
   bookkeeping. The Lambda exists only because Aurora is not reachable from
   outside the VPC.
-- **No user management yet.** Create other users with SQL, e.g.
+- **No user management screen yet** (Increment D). Create other users with SQL, e.g.
   `INSERT INTO users (email, password_hash, full_name, role) VALUES ('pm@acme.test', crypt('…', gen_salt('bf', 12)), 'Pat PM', 'project_manager');`
 - **Compiled dependencies** (`bcrypt`, `psycopg[binary]`) must match the
   Lambda runtime (Python 3.13, x86_64). `start-dev.sh` installs wheels for that
