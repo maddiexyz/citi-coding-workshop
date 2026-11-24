@@ -12,6 +12,7 @@ import Typography from '@mui/material/Typography';
 import useAuth from '../auth/useAuth';
 import { ROLE_LABELS } from '../auth/permissions';
 import homePath from '../auth/homePath';
+import ColorModeToggle from './ColorModeToggle';
 
 /** Main sections; `roles` limits a link to those roles. */
 const NAV_ITEMS = [
@@ -58,6 +59,7 @@ export default function AppLayout({ children }) {
               );
             })}
           </Box>
+          <ColorModeToggle />
           <Button
             color="inherit"
             onClick={(event) => setMenuAnchor(event.currentTarget)}

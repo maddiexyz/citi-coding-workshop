@@ -9,6 +9,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import homePath from '../auth/homePath';
 import useAuth from '../auth/useAuth';
+import ColorModeToggle from '../components/ColorModeToggle';
 
 /** Sign-in form. After signing in, returns the user to the page they wanted. */
 export default function LoginPage() {
@@ -45,7 +46,8 @@ export default function LoginPage() {
   };
 
   return (
-    <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', p: 2, bgcolor: 'grey.100' }}>
+    <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', p: 2, bgcolor: 'background.default', position: 'relative' }}>
+      <Box sx={{ position: 'absolute', top: 8, right: 8, color: 'text.primary' }}><ColorModeToggle /></Box>
       <Paper variant="outlined" sx={{ p: { xs: 3, sm: 4 }, width: '100%', maxWidth: 400 }}>
         <Typography variant="h5" component="h1" gutterBottom>ACME Projects</Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>

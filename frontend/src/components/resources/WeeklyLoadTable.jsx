@@ -1,4 +1,5 @@
 import PropTypes from 'prop-types';
+import { alpha } from '@mui/material/styles';
 import Chip from '@mui/material/Chip';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
@@ -29,7 +30,7 @@ export default function WeeklyLoadTable({ weeks }) {
           {weeks.map((week) => {
             const over = Number(week.over_by) > 0;
             return (
-              <TableRow key={week.week_start} sx={over ? { backgroundColor: 'rgba(237, 108, 2, 0.08)' } : undefined}>
+              <TableRow key={week.week_start} sx={over ? { bgcolor: (theme) => alpha(theme.palette.warning.main, 0.12) } : undefined}>
                 <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatWeek(week.week_start)}</TableCell>
                 <TableCell align="right">{formatHours(week.total_hours)}</TableCell>
                 <TableCell align="right">{formatHours(week.weekly_hours)}</TableCell>

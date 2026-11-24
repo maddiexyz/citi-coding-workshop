@@ -65,6 +65,19 @@ Branch `feature/v1.1` (from `feature/increment-e`).
   and timestamps use `en-IN` too (`LOCALE` in `utils/format.js`). "Today"
   still comes only from the database.
 
+## 8. Light and dark mode
+- `src/theme.js` uses MUI `colorSchemes` (light and dark), default mode
+  `system`; the choice is kept by MUI in `localStorage` (`mui-mode`).
+- `ColorModeToggle` (app bar and login page) cycles light → dark → system,
+  with an `aria-label` and tooltip naming the current and next mode.
+- Dark palette: lighter primary, warning, error, success and secondary with
+  dark text on them. Contrast threshold 4.5 in both schemes so MUI picks AA
+  text colours. The one hardcoded colour (over-allocated week rows) and the
+  login page's light grey now come from the theme.
+- Tests: `theme.test.js` checks every palette colour against its text and
+  against the page and paper backgrounds in both schemes (AA); toggle cycle
+  and persistence; the Cypress axe spec runs every page in light and dark.
+
 ## Decisions made on your behalf
 | Item | Decision | Why |
 | --- | --- | --- |
@@ -78,3 +91,5 @@ Branch `feature/v1.1` (from `feature/increment-e`).
 | 6 | Wrong current-password attempts share the sign-in failure counter for that email | One limit for guessing a password, wherever it is guessed |
 | 6 | Sign out moved into the user menu with Account | A single "user menu" as the brief describes |
 | 7 | Two decimals are kept in amounts (`₹1,20,000.00`) | Amounts are stored to the paisa; hiding them would round displayed spend |
+| 8 | Dark palette: primary #90caf9, warning #fbbf24, error #f87171, success #4ade80, secondary #ce93d8 | Lighter tints that pass AA as text on #121212 and with dark text on them |
+| 8 | The toggle is an icon button whose label says the current mode and the next one | Screen-reader users hear both what is on and what a press does |

@@ -1,26 +1,32 @@
-// Accessibility: no WCAG 2 A/AA violations found by axe on any page.
-describe('Accessibility (axe, WCAG 2 A/AA)', () => {
-  it('login page', () => {
-    cy.visit('/login');
-    cy.checkPage();
-  });
+// Accessibility: no WCAG 2 A/AA violations found by axe on any page, in light and dark mode.
+const visitIn = (mode, path) => cy.visit(path, { onBeforeLoad: (win) => win.localStorage.setItem('mui-mode', mode) });
 
-  it('every signed-in page and project tab', () => {
-    cy.api('project_manager', 'POST', '/projects', {
-      code: 'E2E-A11Y', name: 'E2E Accessibility', status: 'active', budget_planned: '100',
-    }).as('project');
-    cy.signIn('admin');
-    ['/dashboard', '/projects', '/projects/new', '/resources', '/users'].forEach((path) => {
-      cy.visit(path);
-      cy.get('h1').should('be.visible');
+['light', 'dark'].forEach((mode) => {
+  describe(`Accessibility (axe, WCAG 2 A/AA) in ${mode} mode`, () => {
+    it('login page', () => {
+      visitIn(mode, '/login');
+      cy.get('button[aria-label^="Colour theme"]').should('have.attr', 'aria-label').and('contain', mode === 'light' ? 'Light' : 'Dark');
       cy.checkPage();
     });
-    cy.get('@project').then((project) => {
-      ['overview', 'deliverables', 'allocations', 'budget', 'activity'].forEach((tab) => {
-        cy.visit(`/projects/${project.id}?tab=${tab}`);
-        cy.get('[role="tabpanel"]').should('be.visible');
+
+    it('every signed-in page and project tab', () => {
+      cy.api('project_manager', 'POST', '/projects', {
+        code: `E2E-A11Y-${mode.toUpperCase()}`, name: 'E2E Accessibility', status: 'active', budget_planned: '100',
+      }).as('project');
+      cy.signIn('admin');
+      ['/my-work', '/dashboard', '/projects', '/projects/new', '/resources', '/users', '/account'].forEach((path) => {
+        visitIn(mode, path);
+        cy.get('h1').should('be.visible');
         cy.get('[aria-label^="Loading"]').should('not.exist');
         cy.checkPage();
+      });
+      cy.get('@project').then((project) => {
+        ['overview', 'deliverables', 'allocations', 'budget', 'activity'].forEach((tab) => {
+          visitIn(mode, `/projects/${project.id}?tab=${tab}`);
+          cy.get('[role="tabpanel"]').should('be.visible');
+          cy.get('[aria-label^="Loading"]').should('not.exist');
+          cy.checkPage();
+        });
       });
     });
   });
