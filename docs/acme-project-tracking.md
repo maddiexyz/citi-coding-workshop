@@ -1,10 +1,12 @@
 # ACME Project Tracking
 
-Sign in, then manage projects and their deliverables (with dependencies),
-with role-based permissions enforced by the backend.
+Sign in, then manage projects, their deliverables (with dependencies) and
+the people allocated to them, with role-based permissions enforced by the
+backend.
 
-Built so far: Increment 1 (sign-in, projects) and Increment A (deliverables,
-dependencies, project team lead). Plan and progress: [PLAN.md](./PLAN.md).
+Built so far: Increment 1 (sign-in, projects), Increment A (deliverables,
+dependencies, project team lead) and Increment B (people, allocations,
+over-allocation). Plan and progress: [PLAN.md](./PLAN.md).
 
 ## Run locally
 
@@ -59,6 +61,7 @@ cd frontend && npm test
 # Acceptance checks with curl against the running local stack
 # (creates throwaway accept-*@acme.test users and removes them afterwards)
 tests/acceptance/increment_a.sh
+tests/acceptance/increment_b.sh
 ```
 
 ## How it fits together
@@ -72,6 +75,8 @@ tests/acceptance/increment_a.sh
 | Projects service | `backend/projects/` → `/api/projects` | CRUD with `?status=` and `?q=` filters; `team_lead_id`; progress counts |
 | Deliverables service | `backend/deliverables/` → `/api/deliverables` | CRUD with `?project_id&status&blocked&overdue&due_before&q`; `/{id}/dependencies` |
 | Users service | `backend/users/` → `/api/users` | `GET ?role&active&q` for pickers (admin, project managers) |
+| Resources service | `backend/resources/` → `/api/resources` | People: CRUD (admin), `?q&department&active&over_allocated&week`, `/{id}/load?from&to` |
+| Allocations service | `backend/allocations/` → `/api/allocations` | Hours per week on a project: CRUD (admin, owning PM), `?project_id&resource_id&active_on` |
 | Frontend | `frontend/src/` | `services/` API calls, `auth/` session and rules, `pages/`, `components/` |
 
 Each folder directly under `backend/` with a `requirements.txt` becomes its own
@@ -81,12 +86,12 @@ Lambda at `/api/<folder>`. A Lambda only contains its own folder, so
 
 ### Roles
 
-| Role | Projects | Deliverables and dependencies |
-| --- | --- | --- |
-| admin | Create, edit and delete any project | Everything |
-| project_manager | Create; edit and delete only projects they own, including choosing the team lead | Everything in projects they own |
-| team_lead | Read only | In projects where they are the team lead: create, edit, change status and manage dependencies; **not** delete |
-| viewer | Read only | Read only |
+| Role | Projects | Deliverables and dependencies | People | Allocations |
+| --- | --- | --- | --- | --- |
+| admin | Create, edit and delete any project | Everything | Create, edit, delete | Everything |
+| project_manager | Create; edit and delete only projects they own, including choosing the team lead | Everything in projects they own | Read | In projects they own |
+| team_lead | Read only | In projects where they are the team lead: create, edit, change status and manage dependencies; **not** delete | Read | Read |
+| viewer | Read only | Read only | Read | Read |
 
 Every signed-in user can read everything. The user is re-read from the
 database on every request, so deactivating a user or changing a role takes
@@ -119,6 +124,26 @@ Every error has the same shape:
   project's progress (done / total, ignoring cancelled). They live in the
   `deliverable_details` and `project_details` views.
 
+### People, allocations and over-allocation
+
+- A *resource* is a person who does project work, with a weekly capacity
+  (`weekly_hours`, at most 60). It is separate from a sign-in *user*; a
+  resource can optionally be linked to one user.
+- An *allocation* gives a person a number of hours per week (at most 80) on a
+  project between two dates, which must fall within the project's dates.
+  The same person can't have two overlapping allocations on the same project
+  (409: edit the existing one); overlapping allocations on different projects
+  are what over-allocation is about.
+- **Over-allocation is flagged, never blocked.** Weeks start on Monday; an
+  allocation counts its full hours in every week it touches, even partly.
+  Allocations on cancelled projects don't count. When a person's hours in a
+  week exceed their capacity, the save still succeeds and the response lists
+  the weeks in `warnings`; the UI explains it. All load figures come from the
+  `resource_weekly_load()` SQL function at query time.
+- A person with allocations can't be deleted (409); set them inactive
+  instead. Inactive people can't get new allocations or deliverables.
+- Hours and other decimals are sent as strings (`"37.50"`), never floats.
+
 ### Deleting
 
 Deleting a project also deletes its deliverables and their dependencies. To
@@ -137,7 +162,10 @@ only to remove mistakes.
   `backend/_migrate` Lambda (AWS) apply the same files with the same
   bookkeeping. The Lambda exists only because Aurora is not reachable from
   outside the VPC.
-- **No user management screen yet** (Increment D). Create other users with SQL, e.g.
+- **No user management screen yet** (Increment D).
+- **Partial weeks count in full** for over-allocation: a two-day allocation of
+  20 h/week adds 20 h to that week. Simple and predictable, but it can flag a
+  week that is really fine. Create other users with SQL, e.g.
   `INSERT INTO users (email, password_hash, full_name, role) VALUES ('pm@acme.test', crypt('…', gen_salt('bf', 12)), 'Pat PM', 'project_manager');`
 - **Compiled dependencies** (`bcrypt`, `psycopg[binary]`) must match the
   Lambda runtime (Python 3.13, x86_64). `start-dev.sh` installs wheels for that
