@@ -25,6 +25,19 @@ Loader safeguards added after the first local runs:
 - Rupee amounts use Indian grouping (₹18,00,000), as the app does.
 - Any setup error, such as a bad URL, ends with a ✗ message, not a traceback.
 
+After the v1.1 audit (fix 5 in `docs/AUDIT.md`):
+- The admin email comes from `SEED_ADMIN_EMAIL`, else the `ADMIN_EMAIL`
+  exported for the deploy, else a prompt. When it comes from the
+  environment it is printed with the variable's name, so you can catch a
+  wrong account (for example the local admin when targeting the cloud)
+  before typing the password.
+- The password is still always typed at the hidden prompt. `ADMIN_PASSWORD`
+  is deliberately not read: the seeder brief requires the password to be
+  entered, never stored.
+- An empty email or password is refused before anything is sent, since a
+  failed sign-in counts towards the rate limit. Ctrl-D or Ctrl-C at a prompt
+  stops with a ✗ message instead of a traceback.
+
 ## Verified locally (http://localhost:3001)
 Signed in as a temporary local admin (`accept-seeder@acme.test`, created and
 removed in the local database for the check), never the owner's account.

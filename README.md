@@ -102,7 +102,8 @@ tests/seed/run.sh https://<your-site>.cloudfront.net --reset     # removes only 
 ```
 
 The admin password is read with a hidden prompt and kept in memory only
-(`SEED_ADMIN_EMAIL` skips the email question). A failed sign-in is never
+(the email is taken from `SEED_ADMIN_EMAIL`, else the `ADMIN_EMAIL` you export for
+the deploy, and printed so you can check it; otherwise it is asked for). A failed sign-in is never
 retried: the run stops and says why, so it can't trip the rate limit.
 
 **What gets created** (the same on every run: fixed random seed, dates relative to today):

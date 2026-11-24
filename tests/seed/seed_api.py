@@ -7,7 +7,8 @@ public API only: no AWS credentials, no database access.
 
 BASE_URL is the site (CloudFront URL) or the local proxy (http://localhost:3001);
 the API is BASE_URL/api. The admin password is asked with getpass and kept in
-memory only. Each step runs as the user who would really do it:
+memory only; the email comes from SEED_ADMIN_EMAIL or ADMIN_EMAIL when set,
+else it is asked for too. Each step runs as the user who would really do it:
 
 1. admin: departments, sign-in accounts (random passwords, kept in memory),
    people and their links to accounts;
@@ -503,6 +504,17 @@ def print_plan(plan: dict) -> None:
     print("Anything that already exists (matched on codes, emails and names) is skipped.")
 
 
+def admin_email() -> str:
+    """The admin's email: SEED_ADMIN_EMAIL, else ADMIN_EMAIL (as exported for the deploy), else asked for.
+    Printed when it comes from the environment, so a wrong account is caught before the password prompt."""
+    for name in ("SEED_ADMIN_EMAIL", "ADMIN_EMAIL"):
+        value = (os.environ.get(name) or "").strip()
+        if value:
+            print(f"Admin email: {value} (from {name})")
+            return value
+    return input("Admin email: ").strip()
+
+
 def main(argv=None) -> int:
     """Parse arguments and run the seeder; returns the exit code."""
     parser = argparse.ArgumentParser(description="Seed ACME demo data through the public API.")
@@ -518,8 +530,13 @@ def main(argv=None) -> int:
 
     try:
         api = Api(args.base_url, args.delay)
-        email = os.environ.get("SEED_ADMIN_EMAIL") or input("Admin email: ").strip()
-        admin = Session(api, email, getpass.getpass("Admin password: "))
+        email = admin_email()
+        password = getpass.getpass("Admin password: ")
+        if not email or not password:
+            # Never send an empty sign-in: a failed one counts towards the rate limit
+            raise SeedError("An admin email and password are needed; nothing was sent")
+        admin = Session(api, email, password)
+        del password
         if admin.user["role"] != "admin":
             raise SeedError(f"{email} is not an admin")
         seeder = Seeder(api, admin, plan)
@@ -537,6 +554,9 @@ def main(argv=None) -> int:
     except SeedError as error:
         print(f"\n✗ {error}", file=sys.stderr)
         return 1
+    except (EOFError, KeyboardInterrupt):
+        print("\n✗ Stopped at the prompt; nothing more was sent", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":
