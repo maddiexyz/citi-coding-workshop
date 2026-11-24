@@ -273,3 +273,6 @@ frontend/coverage/
 
 # Load test reports
 tests/load/results/
+
+# Demo account passwords written by tests/seed (never commit)
+tests/seed/.demo-credentials
