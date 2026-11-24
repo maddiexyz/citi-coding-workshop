@@ -1,9 +1,11 @@
 import { Suspense, lazy } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import PropTypes from 'prop-types';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import RequireAuth from './auth/RequireAuth';
 import AppLayout from './components/AppLayout';
+import ErrorBoundary from './components/ErrorBoundary';
 import homePath from './auth/homePath';
 import useAuth from './auth/useAuth';
 import LoginPage from './pages/LoginPage';
@@ -27,13 +29,29 @@ const pageLoading = (
 );
 
 /**
+ * A page inside the app frame: an error while loading or rendering it shows a
+ * message in place of the page (the navigation keeps working), and going to
+ * another path clears it.
+ */
+function Page({ children }) {
+  const { pathname } = useLocation();
+  return (
+    <ErrorBoundary resetKey={pathname}>
+      <Suspense fallback={pageLoading}>{children}</Suspense>
+    </ErrorBoundary>
+  );
+}
+
+Page.propTypes = { children: PropTypes.node.isRequired };
+
+/**
  * Wrap a page so it needs a signed-in user and gets the app frame.
  * @param {import('react').ReactNode} page
  */
 function protectedPage(page) {
   return (
     <RequireAuth>
-      <AppLayout><Suspense fallback={pageLoading}>{page}</Suspense></AppLayout>
+      <AppLayout><Page>{page}</Page></AppLayout>
     </RequireAuth>
   );
 }
