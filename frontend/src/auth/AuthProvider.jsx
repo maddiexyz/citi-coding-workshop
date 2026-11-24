@@ -7,15 +7,19 @@ import * as authApi from '../services/authApi';
 /**
  * Keeps track of the signed-in user.
  *
- * On page load it restores the session from the stored token by calling
- * /auth/me. Any 401 from a signed-in request signs the user out.
+ * On page load it restores the session: from the access token in this tab
+ * (/auth/me), or else from the HttpOnly refresh cookie (/auth/refresh), so a
+ * new tab or a reload after the token expired stays signed in. A 401 that a
+ * refresh can't fix signs the user out.
  */
 export default function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(Boolean(tokenStore.get()));
+  const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState(null);
 
   const logout = useCallback((message = null) => {
+    // Revoke the refresh token on the server too; signing out locally doesn't wait for it
+    if (!message) authApi.logout().catch(() => {});
     tokenStore.clear();
     setUser(null);
     setNotice(message);
@@ -34,9 +38,11 @@ export default function AuthProvider({ children }) {
   }, [logout]);
 
   useEffect(() => {
-    if (!tokenStore.get()) return;
-    authApi.fetchCurrentUser()
-      .then((result) => setUser(result.user))
+    const restore = tokenStore.get()
+      ? authApi.fetchCurrentUser().then((result) => result.user)
+      : authApi.refreshSession().then((session) => session?.user ?? null);
+    restore
+      .then((restored) => setUser(restored))
       .catch(() => tokenStore.clear())
       .finally(() => setLoading(false));
   }, []);

@@ -26,6 +26,15 @@ describe('LoginPage', () => {
     expect(login).not.toHaveBeenCalled();
   });
 
+  it('explains when sign-in is rate limited', async () => {
+    const login = vi.fn().mockRejectedValue(new Error('Too many failed sign-in attempts. Try again in 12 minutes.'));
+    renderLogin(login);
+    await userEvent.type(screen.getByLabelText(/email/i), 'admin@acme.test');
+    await userEvent.type(screen.getByLabelText(/password/i), 'again');
+    await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Try again in 12 minutes');
+  });
+
   it('shows the backend error for wrong credentials', async () => {
     const login = vi.fn().mockRejectedValue(new Error('Invalid email or password'));
     renderLogin(login);

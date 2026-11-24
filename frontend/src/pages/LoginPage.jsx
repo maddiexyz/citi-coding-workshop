@@ -20,7 +20,7 @@ export default function LoginPage() {
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const destination = location.state?.from?.pathname ?? '/projects';
+  const destination = location.state?.from?.pathname ?? '/dashboard';
   if (user) return <Navigate to={destination} replace />;
 
   const handleSubmit = async (event) => {

@@ -11,8 +11,10 @@ import { ROLE_LABELS } from '../auth/permissions';
 
 /** Main sections; `roles` limits a link to those roles. */
 const NAV_ITEMS = [
+  { to: '/dashboard', label: 'Dashboard' },
   { to: '/projects', label: 'Projects' },
   { to: '/resources', label: 'People' },
+  { to: '/users', label: 'Users', roles: ['admin'] },
 ];
 
 /** Page frame for signed-in pages: top bar with navigation, the user and a sign-out button. */
@@ -27,7 +29,7 @@ export default function AppLayout({ children }) {
           <Typography
             variant="h6"
             component={RouterLink}
-            to="/projects"
+            to="/dashboard"
             sx={{ color: 'inherit', textDecoration: 'none', mr: { sm: 2 } }}
           >
             ACME Projects

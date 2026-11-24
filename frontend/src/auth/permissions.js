@@ -109,3 +109,11 @@ export function canDeleteBudgetEntries(user) {
 export function canReadProjectAudit(user, project) {
   return canChangeProject(user, project);
 }
+
+/**
+ * @param {{role: string}|null} user
+ * @returns {boolean} True if the user may manage users and roles (admin only).
+ */
+export function canManageUsers(user) {
+  return user?.role === 'admin';
+}

@@ -17,3 +17,17 @@ export function login(email, password) {
 export function fetchCurrentUser() {
   return apiRequest('/auth/me');
 }
+
+/**
+ * Restore or extend the session with the HttpOnly refresh cookie.
+ * @returns {Promise<{token: string, user: Object}|null>} null when there is no valid session.
+ */
+export { refreshSession } from './api';
+
+/**
+ * Sign out on the server: revokes the refresh token and clears its cookie.
+ * @returns {Promise<null>}
+ */
+export function logout() {
+  return apiRequest('/auth/logout', { method: 'POST' });
+}

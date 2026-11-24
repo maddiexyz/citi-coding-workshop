@@ -62,16 +62,11 @@ function buildUrl(path, query = {}) {
 }
 
 /**
- * Call a backend endpoint and return the decoded JSON body.
- * @param {string} path Path after /api, e.g. "/projects/12".
- * @param {Object} [options]
- * @param {string} [options.method] HTTP method (default GET).
- * @param {Object} [options.body] JSON body.
- * @param {Object<string, string>} [options.query] Query parameters.
- * @returns {Promise<any>} The response body, or null for 204 No Content.
+ * Send one request and decode the response.
+ * Auth endpoints send cookies (the HttpOnly refresh token lives on /api/auth).
  * @throws {ApiError} On any non-2xx response or network failure.
  */
-export async function apiRequest(path, { method = 'GET', body, query } = {}) {
+async function send(path, { method = 'GET', body, query } = {}) {
   const token = tokenStore.get();
   const headers = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -83,6 +78,7 @@ export async function apiRequest(path, { method = 'GET', body, query } = {}) {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
+      credentials: path.startsWith('/auth/') ? 'include' : 'same-origin',
     });
   } catch {
     throw new ApiError(0, 'network_error', 'Cannot reach the server. Check your connection and try again.');
@@ -93,12 +89,63 @@ export async function apiRequest(path, { method = 'GET', body, query } = {}) {
   if (response.ok) return data;
 
   const error = data?.error ?? {};
-  const apiError = new ApiError(
+  throw new ApiError(
     response.status,
     error.code ?? 'http_error',
     error.message ?? `Request failed with status ${response.status}`,
     error.details ?? {},
   );
-  if (response.status === 401 && token) handleUnauthorized(apiError);
-  throw apiError;
+}
+
+// One refresh at a time: requests that hit an expired token together share it
+let refreshing = null;
+
+/**
+ * Get a new access token with the refresh cookie.
+ * @returns {Promise<Object|null>} The refreshed session ({token, user}), or null if the session is over.
+ */
+export function refreshSession() {
+  if (!refreshing) {
+    refreshing = send('/auth/refresh', { method: 'POST' })
+      .then((session) => {
+        tokenStore.set(session.token);
+        return session;
+      })
+      .catch(() => null)
+      .finally(() => { refreshing = null; });
+  }
+  return refreshing;
+}
+
+/**
+ * Call a backend endpoint and return the decoded JSON body.
+ *
+ * When a signed-in request gets 401 (usually an expired 15-minute access
+ * token), it refreshes the session once and retries; if that fails, the
+ * unauthorized handler signs the user out.
+ * @param {string} path Path after /api, e.g. "/projects/12".
+ * @param {Object} [options]
+ * @param {string} [options.method] HTTP method (default GET).
+ * @param {Object} [options.body] JSON body.
+ * @param {Object<string, string>} [options.query] Query parameters.
+ * @returns {Promise<any>} The response body, or null for 204 No Content.
+ * @throws {ApiError} On any non-2xx response or network failure.
+ */
+export async function apiRequest(path, options = {}) {
+  const hadToken = Boolean(tokenStore.get());
+  try {
+    return await send(path, options);
+  } catch (error) {
+    if (error.status !== 401 || !hadToken || path.startsWith('/auth/')) throw error;
+    if (await refreshSession()) {
+      try {
+        return await send(path, options);
+      } catch (retryError) {
+        if (retryError.status === 401) handleUnauthorized(retryError);
+        throw retryError;
+      }
+    }
+    handleUnauthorized(error);
+    throw error;
+  }
 }

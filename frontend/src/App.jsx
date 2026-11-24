@@ -1,12 +1,14 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import RequireAuth from './auth/RequireAuth';
 import AppLayout from './components/AppLayout';
+import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import ProjectFormPage from './pages/ProjectFormPage';
 import ProjectsPage from './pages/ProjectsPage';
 import ResourceDetailPage from './pages/ResourceDetailPage';
 import ResourcesPage from './pages/ResourcesPage';
+import UsersPage from './pages/UsersPage';
 
 /**
  * Wrap a page so it needs a signed-in user and gets the app frame.
@@ -25,13 +27,15 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/dashboard" element={protectedPage(<DashboardPage />)} />
       <Route path="/projects" element={protectedPage(<ProjectsPage />)} />
       <Route path="/projects/new" element={protectedPage(<ProjectFormPage />)} />
       <Route path="/projects/:id" element={protectedPage(<ProjectDetailPage />)} />
       <Route path="/projects/:id/edit" element={protectedPage(<ProjectFormPage />)} />
       <Route path="/resources" element={protectedPage(<ResourcesPage />)} />
       <Route path="/resources/:id" element={protectedPage(<ResourceDetailPage />)} />
-      <Route path="*" element={<Navigate to="/projects" replace />} />
+      <Route path="/users" element={protectedPage(<UsersPage />)} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   );
 }

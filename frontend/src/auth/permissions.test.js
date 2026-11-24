@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canChangeProject, canCreateProject, canDeleteDeliverables, canEditDeliverables, canManageAllocations,
   canManageResources, isAssignedTeamLead, canDeleteProject, canManageBudget, canDeleteBudgetEntries,
-  canReadProjectAudit,
+  canReadProjectAudit, canManageUsers,
 } from './permissions';
 
 const project = { owner_id: 1 };
@@ -94,4 +94,10 @@ describe('budget, audit and project delete permissions', () => {
     expect(canDeleteBudgetEntries(user)).toBe(remove);
     expect(canReadProjectAudit(user, project)).toBe(auditable);
   });
+});
+
+describe('canManageUsers', () => {
+  it.each([['admin', true], ['project_manager', false], ['team_lead', false], ['viewer', false]])(
+    '%s -> %s', (role, expected) => expect(canManageUsers({ id: 1, role })).toBe(expected),
+  );
 });
