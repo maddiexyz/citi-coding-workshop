@@ -37,7 +37,7 @@ describe('Sign-in and sessions', () => {
   it('signs out and ends the session', () => {
     cy.signIn('viewer');
     cy.visit('/dashboard');
-    cy.contains('button', 'Sign out').click();
+    cy.signOut();
     cy.location('pathname').should('eq', '/login');
     cy.visit('/dashboard');
     cy.location('pathname').should('eq', '/login');

@@ -42,3 +42,15 @@ def verify_password(password: str, password_hash: Optional[str]) -> bool:
         # bcrypt rejects passwords longer than 72 bytes and malformed hashes
         return False
     return matches and password_hash is not None
+
+
+# One strength rule for every password a person sets (admin reset, own change)
+MIN_PASSWORD_LENGTH = 10
+
+
+def check_new_password(validator, field: str = "password"):
+    """Validate a new password field on a Validator: required, 10 to 200 characters. Returns it."""
+    password = validator.string(field, required=True, max_length=200, strip=False)
+    if password and len(password) < MIN_PASSWORD_LENGTH:
+        validator.add_error(field, f"Must be at least {MIN_PASSWORD_LENGTH} characters")
+    return password

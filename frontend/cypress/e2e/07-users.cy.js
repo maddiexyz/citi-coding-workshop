@@ -16,7 +16,7 @@ describe('User management', () => {
     cy.contains('You can’t change your own role');
     cy.get('[role="dialog"]').contains('button', 'Cancel').click();
 
-    cy.contains('button', 'Sign out').click();
+    cy.signOut();
     cy.findField(/email/i).type('e2e-created@acme.test');
     cy.findField(/password/i).type('long-enough-pass-1');
     cy.contains('button', 'Sign in').click();

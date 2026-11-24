@@ -10,6 +10,7 @@ import LoginPage from './pages/LoginPage';
 
 // Each page is its own chunk, loaded when first visited, so the first
 // download stays small (the login page is in the main bundle).
+const AccountPage = lazy(() => import('./pages/AccountPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const MyWorkPage = lazy(() => import('./pages/MyWorkPage'));
 const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage'));
@@ -57,6 +58,7 @@ export default function App() {
       <Route path="/resources" element={protectedPage(<ResourcesPage />)} />
       <Route path="/resources/:id" element={protectedPage(<ResourceDetailPage />)} />
       <Route path="/users" element={protectedPage(<UsersPage />)} />
+      <Route path="/account" element={protectedPage(<AccountPage />)} />
       <Route path="*" element={<Home />} />
     </Routes>
   );

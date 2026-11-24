@@ -31,3 +31,15 @@ export { refreshSession } from './api';
 export function logout() {
   return apiRequest('/auth/logout', { method: 'POST' });
 }
+
+/**
+ * Change the signed-in user's own password. Their other sessions are signed out.
+ * @param {string} currentPassword
+ * @param {string} newPassword
+ * @returns {Promise<null>}
+ */
+export function changePassword(currentPassword, newPassword) {
+  return apiRequest('/auth/password', {
+    method: 'POST', body: { current_password: currentPassword, new_password: newPassword },
+  });
+}

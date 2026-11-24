@@ -105,3 +105,12 @@ def revoke_all(user_id: int) -> None:
     """Revoke every refresh token of a user (deactivation, role change, password reset)."""
     db.execute("UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = %s AND revoked_at IS NULL",
                (user_id,))
+
+
+def revoke_others(user_id: int, keep_token: Optional[str]) -> None:
+    """Revoke every refresh token of a user except the one in keep_token (the current session)."""
+    db.execute(
+        "UPDATE refresh_tokens SET revoked_at = now()"
+        " WHERE user_id = %s AND revoked_at IS NULL AND token_hash <> %s",
+        (user_id, _hash(keep_token) if keep_token else ""),
+    )

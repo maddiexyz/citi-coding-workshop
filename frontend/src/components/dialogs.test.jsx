@@ -97,11 +97,13 @@ describe('AppLayout', () => {
     expect(screen.getByText('Admin')).toBeInTheDocument();
   });
 
-  it('hides Users from other roles and signs out', async () => {
+  it('hides Users from other roles and signs out from the user menu', async () => {
     const logout = vi.fn();
     withAuth(<AppLayout><p>content</p></AppLayout>, { user: user('viewer'), loading: false, logout });
     expect(screen.queryByRole('link', { name: 'Users' })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Account menu for Pat Lee' }));
+    expect(screen.getByRole('menuitem', { name: 'Account' })).toHaveAttribute('href', '/account');
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Sign out' }));
     expect(logout).toHaveBeenCalled();
   });
 });

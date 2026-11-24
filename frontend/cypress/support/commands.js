@@ -45,3 +45,9 @@ Cypress.Commands.add('checkPage', () => {
     violations.forEach((v) => cy.task('log', `${v.id}: ${v.help} (${v.nodes.length}) -> ${v.nodes.map((n) => `${n.target.join(' ')} [${n.any.map((a) => a.message).join('; ')}]`).join(' | ')}`, { log: false }));
   });
 });
+
+/** Sign out through the user menu in the app bar. */
+Cypress.Commands.add('signOut', () => {
+  cy.get('button[aria-label^="Account menu for"]').click();
+  cy.contains('[role="menuitem"]', 'Sign out').click();
+});

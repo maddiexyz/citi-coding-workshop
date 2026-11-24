@@ -25,12 +25,11 @@ from psycopg import errors
 from common import audit, db, sessions
 from common.auth import require_auth
 from common.http import ApiError, Request, json_response, make_handler, parse_bool, parse_id
-from common.passwords import hash_password
+from common.passwords import check_new_password, hash_password
 from common.permissions import ADMIN, PROJECT_MANAGER, ROLES
 from common.validation import Validator
 
 EMAIL_PATTERN = r"[^@\s]+@[^@\s]+\.[^@\s]+"
-MIN_PASSWORD_LENGTH = 10
 
 
 def require_admin(request: Request) -> None:
@@ -40,10 +39,8 @@ def require_admin(request: Request) -> None:
 
 
 def validate_password(validator: Validator) -> None:
-    """Check the password field: at least MIN_PASSWORD_LENGTH characters."""
-    password = validator.string("password", required=True, max_length=200, strip=False)
-    if password and len(password) < MIN_PASSWORD_LENGTH:
-        validator.add_error("password", f"Must be at least {MIN_PASSWORD_LENGTH} characters")
+    """Check the password field with the shared strength rule."""
+    check_new_password(validator, "password")
 
 
 def validate_user(data: dict, *, creating: bool) -> dict:

@@ -6,6 +6,9 @@ Routes (served at /api/auth):
     POST /refresh  (refresh cookie)      -> {"token", "expires_in", "user"} + new refresh cookie
     POST /logout   (refresh cookie)      -> 204, cookie cleared
     GET  /me       (Bearer token)        -> {"user"}
+    POST /password {"current_password", "new_password"} (Bearer token) -> 204
+                   wrong current password: 400 on current_password, rate limited like sign-in;
+                   on success every other session (refresh token) is revoked, this one is kept
 
 "user" is {id, email, full_name, role, resource_id}: resource_id is the
 person (resource) linked to this account, or null.
@@ -20,10 +23,10 @@ one IP, within 15 minutes, further attempts get 429 with Retry-After.
 import logging
 import math
 
-from common import db, sessions
+from common import audit, db, sessions
 from common.auth import TOKEN_TTL_MINUTES, create_token, require_auth
 from common.http import ApiError, Request, json_response, make_handler
-from common.passwords import verify_password
+from common.passwords import check_new_password, hash_password, verify_password
 from common.validation import Validator
 
 logger = logging.getLogger()
@@ -145,9 +148,35 @@ def me(request: Request) -> dict:
     return json_response(200, {"user": public_user(user)})
 
 
+@require_auth
+def change_password(request: Request) -> dict:
+    """Change the signed-in user's own password; sign out their other sessions."""
+    validator = Validator(request.json())
+    current = validator.string("current_password", required=True, max_length=200, strip=False)
+    new = check_new_password(validator, "new_password")
+    if current and new and current == new:
+        validator.add_error("new_password", "Must be different from the current password")
+    validator.raise_if_errors()
+
+    user = db.fetch_one("SELECT id, email, password_hash FROM users WHERE id = %s", (request.user.id,))
+    # Guessing the current password counts towards the same limit as sign-in
+    check_rate_limit(user["email"], request.source_ip)
+    if not verify_password(current, user["password_hash"]):
+        record_attempt(user["email"], request.source_ip, False)
+        raise ApiError(400, "validation_error", "Some fields are invalid",
+                       {"current_password": "Incorrect password"})
+    with db.transaction():
+        db.execute("UPDATE users SET password_hash = %s WHERE id = %s", (hash_password(new), user["id"]))
+        sessions.revoke_others(user["id"], request.cookies.get(sessions.COOKIE_NAME))
+        audit.record(request.user, "update", "user", user["id"], details={"change": "own_password"},
+                     summary="Changed their own password")
+    return json_response(204)
+
+
 handler = make_handler([
     ("POST", "/login", login),
     ("POST", "/refresh", refresh),
     ("POST", "/logout", logout),
     ("GET", "/me", me),
+    ("POST", "/password", change_password),
 ])

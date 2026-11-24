@@ -45,6 +45,18 @@ Branch `feature/v1.1` (from `feature/increment-e`).
 - The deliverable dialog opens in an *Update status* mode for them: every
   field but the status is locked, with a note explaining why.
 
+## 6. Change own password
+- `POST /api/auth/password {current_password, new_password}`: the same
+  strength rule as the admin reset (now shared in
+  `_common/passwords.check_new_password`), and the new password must differ
+  from the current one. A wrong current password is a 400 on
+  `current_password` and counts towards the sign-in rate limit (5 per email
+  in 15 minutes, then 429). On success every other refresh token is revoked
+  and the current session (its cookie) is kept; audited without password
+  data.
+- *Account* page (`/account`) from a new user menu in the app bar (the name
+  button now opens *Account* and *Sign out*).
+
 ## Decisions made on your behalf
 | Item | Decision | Why |
 | --- | --- | --- |
@@ -55,3 +67,5 @@ Branch `feature/v1.1` (from `feature/increment-e`).
 | 3 | The Mine toggle is hidden for admins as well as viewers | The brief names PMs and team leads; admins manage everything |
 | 3 | `assignee=me` / `resource=me` with no linked person return nothing | "Mine" must never widen to everything |
 | 5 | The assignee uses the same `PUT /api/deliverables/{id}` with unchanged values (no separate status endpoint) | One contract; the server compares field by field and names any field that may not change |
+| 6 | Wrong current-password attempts share the sign-in failure counter for that email | One limit for guessing a password, wherever it is guessed |
+| 6 | Sign out moved into the user menu with Account | A single "user menu" as the brief describes |
