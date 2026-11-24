@@ -169,12 +169,12 @@ changes*, no migrations and an existing admin. Never run
 
 | What | Command | Result |
 | --- | --- | --- |
-| Backend unit + integration (real PostgreSQL), coverage gate 80% | `backend/.venv/bin/pytest backend/tests --cov --cov-config=backend/.coveragerc` | 193 passed, **95%** |
-| Frontend components, pages and API clients, coverage gate 80% | `cd frontend && npm run coverage` | 239 passed, **93%** lines, 91% statements, 86% branches, 85% functions |
-| End-to-end (Cypress, production build, local stack) incl. axe WCAG 2 A/AA | `cd frontend && npm run e2e` | 12 specs, 27 tests passed |
+| Backend unit + integration (real PostgreSQL), coverage gate 80% | `backend/.venv/bin/pytest backend/tests --cov --cov-config=backend/.coveragerc` | 194 passed, **95%** |
+| Frontend components, pages and API clients, coverage gate 80% | `cd frontend && npm run coverage` | 251 passed, **93%** lines, 91% statements, 86% branches, 85% functions |
+| End-to-end (Cypress, production build, local stack) incl. axe WCAG 2 A/AA | `cd frontend && npm run e2e` | 12 specs, 27 tests passed; the accessibility spec passed 5 runs out of 5 after the v1.2 dark-mode fix |
 | API acceptance (curl, local stack) | `tests/acceptance/increment_{a,b,c,d}.sh` | 20 + 15 + 18 + 19 checks passed |
-| Sign-in, refresh cookie, sign-out on the deployed site | `tests/acceptance/cloud_auth_check.sh` | asks for an account |
-| Load (Artillery) | `tests/load/run.sh local` (smoke) / `cloud` (asks for an account) | local: 548 requests, all 200, p95 36 ms |
+| Sign-in, refresh cookie, sign-out on the deployed site | `tests/acceptance/cloud_auth_check.sh` (asks for an account) | 11 passed, 0 failed (2026-11-25) |
+| Load (Artillery) | `tests/load/run.sh local` (smoke) / `cloud` (asks for an account) | local: 556 requests, all 200, p95 34 ms. Cloud (2026-11-25, peak 20 new users/s): 6,340 requests, all 200, 0 failed, p95 55 ms, p99 518 ms |
 | v1.1 API acceptance | `tests/acceptance/v1_1.sh` | 26 checks passed |
 | Demo data generator (deterministic, no cycles, owners, mix of states) | `backend/.venv/bin/pytest tests/seed` | 9 passed |
 | Lint and security | `cd backend && .venv/bin/flake8 . && .venv/bin/bandit -r _common _migrate */function.py`; `cd frontend && npm run lint` | clean |
@@ -203,6 +203,28 @@ their own work on *My work*, the landing page for everyone but admins.
 Every request is checked by the backend (401 / 403); the UI only hides what a
 role can't do. Full matrix: [docs/acme-project-tracking.md](./docs/acme-project-tracking.md#roles).
 
+## Releases
+
+| Tag | What it adds | Notes |
+| --- | --- | --- |
+| `v1.0` | Increments 1 and A–E plus the v1.1 round: projects, deliverables and dependency chains, people and allocations, budgets in ₹, audit log, at-risk dashboard, users, sessions, My work, departments, light/dark mode | [changes/phase1_1.md](./changes/phase1_1.md) and earlier `changes/phase*.md` |
+| `v1.1` | The API demo-data seeder (`tests/seed`), the cloud seed, sign-in check and load test results, and a read-only audit against the rubric | [changes/seed_data.md](./changes/seed_data.md), [docs/AUDIT.md](./docs/AUDIT.md) |
+| `v1.2` | The audit's five fixes, all deployed (listed below) | [changes/post_audit.md](./changes/post_audit.md) |
+
+What changed in `v1.2`:
+- **Error boundary.** A page that fails to render or load shows *Something
+  went wrong* with *Reload page* and *Go to home page*, instead of a blank
+  screen, and the navigation keeps working. A tab left open across a
+  redeploy reloads itself once to pick up the new version, with a 30 s guard
+  so it can't loop.
+- **No light flash in dark mode.** The stored colour mode is applied from
+  the first render. This also fixed the flaky dark-mode accessibility test.
+- **One error shape.** Every API error now has `code`, `message` and
+  `details` (`{}` when there are no field errors), as documented.
+- **Seeder.** The admin email can come from the `ADMIN_EMAIL` you export for
+  the deploy. The password is still always typed.
+- **Change notes.** `changes/phase1_1.md` gained its missing section 4 (My work).
+
 ## Decisions and known gaps
 
 Decisions, assumptions and their reasons are in [docs/PLAN.md](./docs/PLAN.md)
@@ -224,8 +246,8 @@ and the per-increment notes in [changes/](./changes/). Known gaps:
 | `infra/` | Terraform |
 | `bin/` | Dev, migration and deploy scripts |
 | `tests/` | curl acceptance scripts, the Artillery load test, the API demo-data seeder |
-| `docs/` | Workshop guides, project docs, plan, compliance |
-| `changes/` | What changed in each increment |
+| `docs/` | Workshop guides, project docs, plan, compliance, audit |
+| `changes/` | What changed in each increment, the seeder and the audit fixes |
 
 ## License
 
