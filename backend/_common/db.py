@@ -25,7 +25,8 @@ def _connection_info() -> str:
         dbname=os.getenv("POSTGRES_NAME", "postgres"),
         user=os.getenv("POSTGRES_USER", "postgres"),
         password=os.getenv("POSTGRES_PASS", ""),
-        connect_timeout=10,
+        # Aurora Serverless v2 at 0 capacity takes ~15 s to resume on first connect
+        connect_timeout=30,
         # AWS Aurora requires TLS; the local database does not offer it
         sslmode="disable" if is_local else "require",
     )
