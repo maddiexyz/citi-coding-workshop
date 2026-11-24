@@ -127,9 +127,20 @@ Branch `feature/v1.1` (from `feature/increment-e`).
   first deploy reset the organizers' encryption and retention on the new
   `departments` log group (accepted drift); the next backend deploy reported
   *No changes*, no migrations, admin seed skipped.
-- **Not run:** `tests/acceptance/cloud_auth_check.sh` and
-  `tests/load/run.sh cloud` (skipped by the owner; both need an account's
-  credentials).
+- **Cloud checks:** skipped at the freeze, then run on 2026-11-25 after the
+  cloud demo data was seeded, signed in as the seeded viewer (its password
+  piped from `tests/seed/.demo-credentials`, never printed):
+  - `tests/acceptance/cloud_auth_check.sh`: **11 passed, 0 failed**. That covers
+    sign-in, the refresh cookie flags (`HttpOnly`, `Secure`, `SameSite=Strict`,
+    `Path=/api/auth`), the dashboard with the access token, refresh through
+    CloudFront with rotation, the old token refused (401), sign-out (204) and
+    refresh after sign-out refused (401).
+  - `tests/load/run.sh cloud` (about 2 min, peak 20 new users per second):
+    **6,340 requests, all 200**, about 51 per second. 1,380 virtual users
+    (140 signed in, 1,240 browsed), **0 failed**. Response time: median 25 ms,
+    **p95 55 ms**, p99 518 ms, max 1.5 s. The tail comes from Lambda cold
+    starts during the ramp; p95 per endpoint is 33–59 ms. Report:
+    `tests/load/results/20261125-032031-cloud.json` (gitignored).
 
 ## Cloud demo data (after the freeze, 2026-11-25)
 Seeded the deployed site with `tests/seed/run.sh https://detyiwrgyf771.cloudfront.net`

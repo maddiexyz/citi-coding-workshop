@@ -56,7 +56,7 @@ reason). Numbers are from the last run (see [README → Test](../README.md#test)
 | Frontend component tests (guide: Jest + RTL) | ✅ | Vitest + React Testing Library (Jest-compatible API) |
 | Frontend API tests with mocked responses | ✅ | `services/api.test.js`, `services/clients.test.js` |
 | End-to-end tests (Cypress or Selenium) | ✅ | `frontend/cypress/e2e/*` (19 tests) |
-| Load testing (Artillery or JMeter) | 🟡 | `tests/load/` scenario and runner. Local smoke: 548 requests, all 200, p95 36 ms. The cloud profile (`tests/load/run.sh cloud`, needs an account) was not run before the v1.0 freeze. A local run at the cloud profile overloaded LocalStack (one container and DB connection per concurrent request), which is why the local profile is a smoke test |
+| Load testing (Artillery or JMeter) | ✅ | `tests/load/` scenario and runner. Local smoke: 548 requests, all 200, p95 36 ms. Cloud profile (`tests/load/run.sh cloud`, 2026-11-25, peak 20 new users per second): 6,340 requests, all 200, 0 failed virtual users, p95 55 ms, p99 518 ms (Lambda cold starts during the ramp). A local run at the cloud profile overloaded LocalStack (one container and DB connection per concurrent request), which is why the local profile is a smoke test |
 | Performance monitoring | 🟡 | CloudWatch duration reports used to size the auth Lambda (4.6 s → 0.55 s per login); no dashboards or alarms |
 
 ### Coverage goals
@@ -80,7 +80,7 @@ reason). Numbers are from the last run (see [README → Test](../README.md#test)
 | API design: methods, status codes, JSON, consistent errors, filters | ✅ | Search/filter on every list |
 | Frontend: responsive, performance, state and feedback, accessibility | ✅ | Pages lazy-loaded; no chunk over 500 kB; light and dark mode, both checked by axe and by palette contrast tests |
 | Frontend: PWA, AI features | ❌ | Beyond the brief |
-| Auth: JWT, hashing, token on every endpoint, expiry **and refresh**, clear errors | ✅ | 15-minute access tokens; rotated HttpOnly refresh cookie; `token_expired` vs `invalid_token` |
+| Auth: JWT, hashing, token on every endpoint, expiry **and refresh**, clear errors | ✅ | 15-minute access tokens; rotated HttpOnly refresh cookie; `token_expired` vs `invalid_token`. On the deployed site, `tests/acceptance/cloud_auth_check.sh` passed 11/11 (2026-11-25): cookie flags, rotation, old-token and post-logout refusal |
 | RBAC: roles, restricted endpoints, read-only roles, no escalation, consistent 403 | ✅ | Role re-read from the database on every request |
 | Admin manages users and roles | ✅ | Users page and `/api/users` |
 | Frontend validation: required marked, before submit, near the field, blocks submit, disabled while saving | ✅ | |
