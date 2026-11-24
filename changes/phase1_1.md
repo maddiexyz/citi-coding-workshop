@@ -78,6 +78,20 @@ Branch `feature/v1.1` (from `feature/increment-e`).
   against the page and paper backgrounds in both schemes (AA); toggle cycle
   and persistence; the Cypress axe spec runs every page in light and dark.
 
+## 9. Demo data (local only)
+- `bin/seed-demo.sh`: departments, two project managers, a team lead and a
+  viewer with linked people (plus one person without an account), and three
+  `DEMO-*` projects: one late, one with a schedule slip and a dependency
+  chain with blocked deliverables (one due within a week), one over budget,
+  and Arjun over-allocated across two projects this week. Amounts in INR.
+  Dates are relative to the database's today.
+- Idempotent (every insert skips existing rows); `--reset` removes only demo
+  rows first. Refuses to run unless PostgreSQL is local (and when
+  `IS_LOCAL=false`). Passwords come from `DEMO_PASSWORD`, or one is generated
+  and printed once; only bcrypt hashes are stored.
+- README *Demo walkthrough*: which account and screen answers each of the
+  seven questions.
+
 ## Decisions made on your behalf
 | Item | Decision | Why |
 | --- | --- | --- |
@@ -93,3 +107,5 @@ Branch `feature/v1.1` (from `feature/increment-e`).
 | 7 | Two decimals are kept in amounts (`₹1,20,000.00`) | Amounts are stored to the paisa; hiding them would round displayed spend |
 | 8 | Dark palette: primary #90caf9, warning #fbbf24, error #f87171, success #4ade80, secondary #ce93d8 | Lighter tints that pass AA as text on #121212 and with dark text on them |
 | 8 | The toggle is an icon button whose label says the current mode and the next one | Screen-reader users hear both what is on and what a press does |
+| 9 | Demo accounts use the `@demo.acme.test` domain and projects the `DEMO-` prefix | `--reset` can then remove exactly the demo rows and nothing else |
+| 9 | The seed writes with SQL, not through the API, so it has no audit entries | It runs before anyone signs in, and the audit log records actions by people |

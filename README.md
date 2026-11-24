@@ -64,6 +64,31 @@ the admin, deploys every Lambda to LocalStack and starts the API proxy (:3001)
 and the React dev server (:3000). It does not exit; stop it with Ctrl+C.
 Sign in as the admin and create other users on the *Users* page.
 
+## Demo walkthrough
+
+Fill the **local** database with a small company (it refuses to run against
+anything but a local PostgreSQL):
+
+```sh
+read -rsp "Demo password: " DEMO_PASSWORD && echo && export DEMO_PASSWORD   # or leave unset: one is generated and printed once
+./bin/seed-demo.sh                # safe to repeat; ./bin/seed-demo.sh --reset starts the demo over
+```
+
+Accounts (all `@demo.acme.test`, password from `DEMO_PASSWORD`): `asha.pm` and
+`vikram.pm` (project managers), `meera.lead` (team lead), `rahul.viewer`
+(viewer); the admin is the one from `ADMIN_EMAIL`. Dates are relative to
+today, so the demo always shows the same situations.
+
+| Question | Sign in as | Go to | You'll see |
+| --- | --- | --- | --- |
+| Status of each active project | any | Projects | Three DEMO projects with status, progress and budget burn |
+| Which projects are at risk | admin (Dashboard) or `asha.pm` (My work) | Dashboard → *Projects needing attention* | DEMO-PAY late (high), DEMO-DATA schedule slip and a blocked deliverable due soon, DEMO-OPS with an over-allocated person |
+| How resources are allocated | any | People → *Group by department*; a person's page | Allocated hours against capacity per department and per week |
+| Key deliverables and completion | `meera.lead` | My work, then DEMO-DATA → Deliverables | Deliverables assigned to Meera (overdue, blocked, due soon); progress per project |
+| Who is over-allocated | any | People → *Over-allocated this week* | Arjun Das: 50 h booked against 40 h (DEMO-DATA + DEMO-OPS) |
+| Dependency chain | any | DEMO-DATA → Deliverables → *Chain* | Ingest pipeline → Data model → Executive dashboards, with the blocked ones highlighted |
+| Budget consumed vs planned | `asha.pm` | DEMO-OPS → Budget | ₹6,25,000 spent of ₹5,00,000 planned: over budget, with spend by category |
+
 ## Deploy to AWS
 
 ```sh
