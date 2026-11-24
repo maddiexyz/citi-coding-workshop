@@ -26,7 +26,7 @@ are in [docs/README.md](./docs/README.md); the rubric is
 graph LR
     Browser["Browser<br/>React + MUI"] --> CF["CloudFront<br/>(local: Vite :3000 / proxy :3001)"]
     CF -->|/| S3["S3 website bucket"]
-    CF -->|/api/&lt;service&gt;| L["Lambda per service<br/>auth · projects · deliverables · resources<br/>allocations · budget · audit · users · dashboard"]
+    CF -->|/api/{service}| L["Lambda per service<br/>auth · projects · deliverables · resources<br/>allocations · budget · audit · users · dashboard"]
     L --> DB[("Aurora PostgreSQL<br/>(local: PostgreSQL :5432)")]
     M["Private migrate Lambda<br/>(no URL)"] --> DB
 ```
