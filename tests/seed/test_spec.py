@@ -5,7 +5,10 @@
 
 import json
 import sys
+from datetime import date, timedelta
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import spec  # noqa: E402  pylint: disable=wrong-import-position
@@ -100,7 +103,8 @@ def test_the_mix_of_states_is_present():
     plan = spec.build()
     flags = spec.expected_flags(plan)
     reasons = {r for rs in flags["at_risk"].values() for r in rs}
-    assert {"late", "overdue_deliverable", "schedule_slip", "blocked_due_soon", "over_allocated_resource"} <= reasons
+    assert {"late", "overdue_deliverable", "schedule_slip", "blocked_due_soon", "over_allocated_resource",
+            "forecast_late"} <= reasons
     assert 2 <= len(flags["over_allocated"]) <= 3
     assert flags["over_budget"]
     statuses = {p["status"] for p in plan["projects"]}
@@ -115,3 +119,49 @@ def test_the_mix_of_states_is_present():
 def test_people_mostly_full_time():
     hours = [p["weekly_hours"] for p in spec.build()["people"]]
     assert hours.count(40) >= len(hours) * 0.7 and any(h < 40 for h in hours)
+
+
+def test_schedule_fields_fit_the_api_rules():
+    plan = spec.build()
+    projects = {p["code"]: p for p in plan["projects"]}
+    for d in plan["deliverables"]:
+        assert 1 <= d["estimate"] <= 365 and 0 <= d["progress"] <= 100
+        assert (d["progress"] == 100) == (d["status"] == "done")
+        assert d["status"] == "in_progress" or d["progress"] in (0, 100)
+        if d["earliest_start"] is not None:
+            assert d["status"] == "not_started"
+            assert max(projects[d["project"]]["start"], 1) <= d["earliest_start"] < d["due"]
+    assert any(d["earliest_start"] is not None for d in plan["deliverables"])
+
+
+WEEK = [date(2026, 11, 23) + timedelta(days=n) for n in range(7)]    # Monday to Sunday
+
+
+@pytest.mark.parametrize("today", WEEK, ids=lambda d: d.strftime("%a"))
+def test_the_forecast_story_holds_on_every_weekday(today):
+    """One project forecasts late through a clear critical path, one is on track, and no healthy one flips."""
+    plan = spec.build()
+    forecasts = spec.forecasts(plan, today)
+    late = forecasts["ACME-TRN"]
+    assert late["status"] == "late" and 7 <= late["slip_days"] <= 14
+    assert late["critical_path"] == spec.LATE_FORECAST_PATH
+    assert late["confidence"]["level"] == "high"
+    on_track = forecasts["ACME-CRM"]
+    assert on_track["status"] == "on_track" and -14 <= on_track["slip_days"] <= -5
+    assert on_track["confidence"]["level"] == "high" and on_track["critical_path"]
+
+    flagged = {code for code, reasons in spec.expected_flags(plan, today)["at_risk"].items()
+               if "forecast_late" in reasons}
+    assert flagged == {"ACME-TRN", "ACME-PAY"}          # PAY is already past its end date
+    active = {p["code"] for p in plan["projects"] if p["status"] == "active"}
+    assert all(forecasts[code]["status"] == "on_track" for code in active - flagged)
+
+
+def test_the_other_flags_do_not_depend_on_the_weekday():
+    plan = spec.build()
+
+    def without_forecast(today):
+        return {code: [r for r in reasons if r != "forecast_late"]
+                for code, reasons in spec.expected_flags(plan, today)["at_risk"].items()}
+
+    assert all(without_forecast(day) == without_forecast(WEEK[0]) for day in WEEK)
