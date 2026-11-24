@@ -98,4 +98,40 @@ the v1.2 seeder and API (438 writes), migrated to 009, then the v2 seeder:
 
 ## Release
 
-@@RELEASE@@
+All suites were green before the merge (table above). Released on 2026-11-25
+(IST), from `main` after merging `feature/v2`:
+
+- `bin/deploy-backend.sh`: Terraform changed only the ten service Lambdas and
+  the migrate Lambda (code packages); nothing else in the stack. The migrate
+  Lambda reported `{"applied": ["009_deliverable_estimates"], "admin": "skipped"}`.
+- `bin/deploy-frontend.sh`: build synced to S3, CloudFront invalidated; the
+  served `ProjectDetailPage` bundle contains the forecast card and the timeline.
+- Read-only checks on the deployed site, as the seeded viewer: sign-in 200;
+  `GET /api/projects` 200 with the forecast summary on all 13 ACME projects
+  (`no_estimates` on the open ones, as the cloud data has none yet);
+  `GET /api/projects/{id}/forecast` 200 (`no_estimates`, 0 of 10 estimated),
+  404 for an unknown project, 401 without a token; `GET /api/dashboard/at-risk`
+  200 with the same five at-risk projects and reasons as before the release;
+  deliverables carry the new fields (`progress_pct` 100 on done ones).
+- Not done on the cloud, on purpose: the v1.2-shaped `PUT` check (it would
+  write an activity-log entry into the demo data; it is covered by
+  `test_a_v1_2_shaped_put_keeps_the_schedule_fields`, the unchanged curl
+  acceptance scripts and the scratch-database seeder run), and the two steps
+  left for the owner:
+
+```sh
+SEED_ADMIN_EMAIL=<admin email> tests/seed/run.sh https://detyiwrgyf771.cloudfront.net   # fills estimates, earliest starts and progress: 154 writes; expect "at-risk projects 6 / 6"
+tests/acceptance/cloud_auth_check.sh https://detyiwrgyf771.cloudfront.net
+```
+
+Until the seeder has run, the cloud projects show "No forecast yet" and no
+*Forecast end*. Rollback, if ever needed: check out `v1.2` and run both deploy
+scripts; migration 009 is additive and v1.2 runs against it unchanged.
+
+Local stack note: `bin/deploy-backend.sh local` must be run with
+`ENVIRONMENT.config` loaded (as `bin/start-dev.sh` does). Run bare, it
+recreates the LocalStack functions under the default participant id and the
+proxy loses its endpoints; fixed here by redeploying with the config loaded,
+`bin/generate-env.sh` and a proxy restart. A duplicate set of
+`*-abcd1234` functions from that bare run is still in LocalStack (harmless;
+gone on the next LocalStack reset).
