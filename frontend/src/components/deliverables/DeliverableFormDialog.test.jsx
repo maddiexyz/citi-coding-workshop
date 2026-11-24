@@ -35,9 +35,37 @@ describe('DeliverableFormDialog', () => {
 
     expect(createDeliverable).toHaveBeenCalledWith({
       project_id: 7, title: 'Spec', description: null, status: 'not_started', due_date: null, assignee_resource_id: null,
+      estimate_days: null, earliest_start: null, progress_pct: 0,
     });
     expect(onChanged).toHaveBeenCalledWith({ id: 1, title: 'Spec' }, 'Created');
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('sends the estimate, earliest start and progress', async () => {
+    createDeliverable.mockResolvedValue({ id: 3, title: 'Build' });
+    renderDialog();
+    await userEvent.type(screen.getByLabelText(/title/i), 'Build');
+    await userEvent.type(screen.getByLabelText('Estimate (working days)'), '8');
+    await userEvent.type(screen.getByLabelText('Earliest start'), '2031-03-03');
+    await userEvent.clear(screen.getByLabelText('Progress %'));
+    await userEvent.type(screen.getByLabelText('Progress %'), '25');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(createDeliverable).toHaveBeenLastCalledWith(expect.objectContaining({
+      estimate_days: 8, earliest_start: '2031-03-03', progress_pct: 25,
+    }));
+  });
+
+  it('checks the estimate and progress ranges before calling the backend', async () => {
+    createDeliverable.mockClear();
+    renderDialog();
+    await userEvent.type(screen.getByLabelText(/title/i), 'Build');
+    await userEvent.type(screen.getByLabelText('Estimate (working days)'), '400');
+    await userEvent.clear(screen.getByLabelText('Progress %'));
+    await userEvent.type(screen.getByLabelText('Progress %'), '150');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(screen.getByText('Must be a whole number from 1 to 365')).toBeInTheDocument();
+    expect(screen.getByText('Must be a whole number from 0 to 100')).toBeInTheDocument();
+    expect(createDeliverable).not.toHaveBeenCalled();
   });
 
   it('offers active people as assignees', async () => {

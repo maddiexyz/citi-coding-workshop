@@ -8,9 +8,11 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import useYou from '../auth/useYou';
 import BurnChip from './budget/BurnChip';
+import ForecastEnd from './forecast/ForecastEnd';
 import ProjectActions from './ProjectActions';
 import ProjectStatusChip from './ProjectStatusChip';
 import projectShape from './projectPropTypes';
+import { hasForecast } from '../services/forecastApi';
 import { formatDate, formatProgress } from '../utils/format';
 
 /** Mobile view: one card per project. */
@@ -37,6 +39,12 @@ export default function ProjectCardList({ projects, canChange, canDelete, onDele
               {formatProgress(project)}
             </Typography>
             <Stack direction="row" sx={{ mt: 1 }}><BurnChip project={project} /></Stack>
+            {hasForecast(project) && (
+              <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: 'center' }}>
+                <Typography variant="body2" color="text.secondary">Forecast end</Typography>
+                <Typography variant="body2" component="div"><ForecastEnd project={project} /></Typography>
+              </Stack>
+            )}
           </CardContent>
           </CardActionArea>
           {canChange(project) && (

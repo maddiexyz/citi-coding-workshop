@@ -12,15 +12,35 @@ doesn't depend on the weekday the seeder runs.
 ``build()`` returns plain dicts; ``expected_flags()`` applies the app's
 at-risk rules (backend/_common/risk.py) to the spec, so tests can prove the
 intended mix of states is really there.
+
+v2 (forecasting): every deliverable also has an ``estimate`` (working days),
+a ``progress`` percentage and, when not started, an ``earliest_start`` two
+weeks before its due date. They are derived after everything else, so the
+rest of the data is exactly what earlier versions generated. ``forecasts()``
+runs the app's own pure schedule engine (backend/_common/schedule.py) over
+the spec: ACME-CRM is the on-track example, ACME-TRN the one that forecasts
+late through a clear critical path.
 """
 
+import importlib.util
 import random
+from datetime import date, timedelta
+from pathlib import Path
 
 SEED = 20261125
 EMAIL_DOMAIN = "acme.example"   # reserved domain: no real mailbox
 CODE_PREFIX = "ACME-"
 SLIP_POINTS = 20                # AT_RISK_SLIP_POINTS default
 BLOCKED_SOON_DAYS = 7
+REFERENCE_TODAY = date(2026, 11, 25)   # only fixes the weekday when no date is given; the tests try all seven
+START_LEAD_DAYS = 14                   # a deliverable not yet started may begin this long before it is due
+FORECAST_FLAG_LEVELS = ("high", "medium")
+
+# The late-forecast story: the last three stages of the learning platform cannot begin before
+# integration is ready to start, and together need more working days than are left.
+# Critical path: Integration -> Security review -> User acceptance testing.
+LATE_FORECAST = {"TRN": {"Integration": 15, "Security review": 12, "User acceptance testing": 15}}
+LATE_FORECAST_PATH = ["Integration", "Security review", "User acceptance testing"]
 
 DEPARTMENTS = ["Engineering", "Finance", "Operations", "Sales", "Human Resources",
                "Data & Analytics", "Customer Support"]
@@ -100,7 +120,7 @@ PROJECTS = [
     ("KYC", "KYC automation", "Finance", "Ananya Iyer", None, 20, 140, "1100000", "planned", "planned"),
     ("LOG", "Logistics route optimisation", "Operations", "Kavya Reddy", None, -25, 95, None, "active", "on_track"),
     ("TRN", "Learning platform", "Human Resources", "Rohan Mehta", "Sneha Kulkarni", -15, 105, "600000", "active",
-     "on_track"),
+     "forecast_late"),
 ]
 
 PHASES = ["Discovery workshop", "Requirements sign-off", "Solution design", "Data model", "API contract",
@@ -234,6 +254,34 @@ def _spend(rng: random.Random, projects: list[dict]) -> list[dict]:
     return entries
 
 
+def _schedule_fields(rng: random.Random, projects: list[dict], deliverables: list[dict]) -> None:
+    """
+    Add estimate (working days), progress (%) and earliest_start to every deliverable.
+
+    The estimate is about 60% of the working days between two due dates, so a
+    project that follows its plan forecasts a few days before its end date;
+    the LATE_FORECAST project gets larger estimates on its last stages.
+    """
+    by_code = {p["code"]: p for p in projects}
+    counts: dict = {}
+    for d in deliverables:
+        counts[d["project"]] = counts.get(d["project"], 0) + 1
+    for d in deliverables:
+        project = by_code[d["project"]]
+        spacing = (project["end"] - project["start"]) / counts[d["project"]]      # calendar days between due dates
+        estimate = min(max(round(spacing * 5 / 7 * 0.6), 2), 10)
+        d["estimate"] = LATE_FORECAST.get(d["project"].removeprefix(CODE_PREFIX), {}).get(d["title"], estimate)
+        if d["status"] == "done":
+            d["progress"] = 100
+        elif d["status"] == "in_progress":
+            # Further along when due within a week, barely begun otherwise
+            d["progress"] = rng.choice([30, 40, 50, 60] if d["due"] <= 7 else [10, 20])
+        else:
+            d["progress"] = 0
+        start = max(d["due"] - START_LEAD_DAYS, project["start"])
+        d["earliest_start"] = start if d["status"] == "not_started" and start > 0 else None
+
+
 def build(seed: int = SEED) -> dict:  # pylint: disable=too-many-locals
     """The complete demo data spec (deterministic for a given seed)."""
     # Deterministic demo data, not security: a seeded PRNG on purpose
@@ -262,6 +310,8 @@ def build(seed: int = SEED) -> dict:  # pylint: disable=too-many-locals
         deliverables += items
     allocations = _allocations(rng, projects, people)
     spend = _spend(rng, projects)
+    # A separate generator, so adding these fields changed nothing that was generated before them
+    _schedule_fields(random.Random(seed + 1), projects, deliverables)  # nosec B311
     return {
         "departments": list(DEPARTMENTS),
         "people": people,
@@ -275,10 +325,45 @@ def build(seed: int = SEED) -> dict:  # pylint: disable=too-many-locals
     }
 
 
-def expected_flags(spec: dict) -> dict:  # pylint: disable=too-many-locals,too-many-branches
+def _engine():
+    """The app's pure schedule engine, loaded from the backend source (standard library only)."""
+    path = Path(__file__).resolve().parents[2] / "backend" / "_common" / "schedule.py"
+    module_spec = importlib.util.spec_from_file_location("acme_schedule", path)
+    module = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(module)
+    return module
+
+
+def forecasts(spec: dict, today: date = REFERENCE_TODAY) -> dict:
+    """
+    The completion forecast of every seeded project, as the app will compute it on ``today``.
+
+    Returns:
+        {code: schedule.compute() result}, with deliverable titles as ids.
+    """
+    engine = _engine()
+
+    def day(offset):
+        return None if offset is None else today + timedelta(days=offset)
+
+    results = {}
+    for p in spec["projects"]:
+        items = [{"id": d["title"], "status": d["status"], "estimate_days": d["estimate"],
+                  "earliest_start": day(d["earliest_start"]), "progress_pct": d["progress"],
+                  "completed_at": today if d["status"] == "done" else None, "due_date": day(d["due"])}
+                 for d in spec["deliverables"] if d["project"] == p["code"]]
+        edges = [(x["deliverable"], x["depends_on"]) for x in spec["dependencies"] if x["project"] == p["code"]]
+        results[p["code"]] = engine.compute(items, edges, today, project_start=day(p["start"]),
+                                            project_end=day(p["end"]))
+    return results
+
+
+# pylint: disable-next=too-many-locals,too-many-branches
+def expected_flags(spec: dict, today: date = REFERENCE_TODAY) -> dict:
     """
     Apply the app's dashboard rules to the spec (today = 0, this week = the
-    days around today), for the seeded projects only.
+    days around today), for the seeded projects only. ``today`` only matters
+    for the forecast, which counts working days.
 
     Returns:
         {"at_risk": {code: [reasons]}, "over_budget": [codes], "over_allocated": [emails]}
@@ -296,6 +381,7 @@ def expected_flags(spec: dict) -> dict:  # pylint: disable=too-many-locals,too-m
     for dep in spec["dependencies"]:
         preds.setdefault((dep["project"], dep["deliverable"]), []).append((dep["project"], dep["depends_on"]))
 
+    outlook = forecasts(spec, today)
     at_risk = {}
     for p in spec["projects"]:
         if not (p["status"] == "active" or (p["status"] == "planned" and p["start"] <= 0)):
@@ -320,6 +406,9 @@ def expected_flags(spec: dict) -> dict:  # pylint: disable=too-many-locals,too-m
         if any(a["project"] == p["code"] and a["person"] in over_people and a["start"] <= 0 <= a["end"]
                for a in spec["allocations"]):
             reasons.append("over_allocated_resource")
+        forecast = outlook[p["code"]]
+        if forecast["status"] == "late" and forecast["confidence"]["level"] in FORECAST_FLAG_LEVELS:
+            reasons.append("forecast_late")
         if reasons:
             at_risk[p["code"]] = reasons
 

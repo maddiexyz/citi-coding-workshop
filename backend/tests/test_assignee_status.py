@@ -1,4 +1,4 @@
-"""Assignees may change the status of their own deliverables, and nothing else."""
+"""Assignees may change the status and progress of their own deliverables, and nothing else."""
 
 import pytest
 
@@ -43,8 +43,16 @@ def test_someone_elses_deliverable_is_refused(deliverables_service, users, setup
     assert (status, body["error"]["code"]) == (403, "forbidden")
 
 
+def test_assignee_updates_progress(deliverables_service, users, setup):
+    mine, _, _ = setup
+    status, body = call(deliverables_service, "PUT", f"/{mine['id']}", token=users["viewer"]["token"],
+                        body=body_of(mine, status="in_progress", progress_pct=60))
+    assert (status, body["status"], body["progress_pct"]) == (200, "in_progress", 60)
+
+
 @pytest.mark.parametrize("change", [{"title": "Renamed"}, {"due_date": "2031-01-01"}, {"description": "x"},
-                                    {"assignee_resource_id": None}])
+                                    {"assignee_resource_id": None}, {"estimate_days": 3},
+                                    {"earliest_start": "2030-01-02"}])
 def test_assignee_cannot_change_other_fields(deliverables_service, users, setup, change):
     mine, _, _ = setup
     status, body = call(deliverables_service, "PUT", f"/{mine['id']}", token=users["viewer"]["token"],

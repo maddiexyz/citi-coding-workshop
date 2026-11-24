@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canChangeProject, canCreateProject, canDeleteDeliverables, canEditDeliverables, canManageAllocations,
   canManageResources, isAssignedTeamLead, canDeleteProject, canManageBudget, canDeleteBudgetEntries,
-  canReadProjectAudit, canManageUsers, canUpdateDeliverableStatus,
+  canReadProjectAudit, canManageUsers, canUpdateDeliverableProgress,
 } from './permissions';
 
 const project = { owner_id: 1 };
@@ -102,10 +102,10 @@ describe('canManageUsers', () => {
   );
 });
 
-describe('canUpdateDeliverableStatus', () => {
+describe('canUpdateDeliverableProgress', () => {
   it('lets only the assignee (via their linked person) update the status', () => {
-    expect(canUpdateDeliverableStatus({ id: 1, resource_id: 3 }, { assignee_resource_id: 3 })).toBe(true);
-    expect(canUpdateDeliverableStatus({ id: 1, resource_id: 3 }, { assignee_resource_id: 4 })).toBe(false);
-    expect(canUpdateDeliverableStatus({ id: 1, resource_id: null }, { assignee_resource_id: null })).toBe(false);
+    expect(canUpdateDeliverableProgress({ id: 1, resource_id: 3 }, { assignee_resource_id: 3 })).toBe(true);
+    expect(canUpdateDeliverableProgress({ id: 1, resource_id: 3 }, { assignee_resource_id: 4 })).toBe(false);
+    expect(canUpdateDeliverableProgress({ id: 1, resource_id: null }, { assignee_resource_id: null })).toBe(false);
   });
 });

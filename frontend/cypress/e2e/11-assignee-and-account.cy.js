@@ -12,13 +12,18 @@ describe('Assignee status and account', () => {
     cy.get('@projectId').then((id) => cy.visit(`/projects/${id}?tab=deliverables`));
     cy.get('tr[aria-label="Open E2E my task"]').should('contain', 'E2E Viewer Person (you)').click();
     cy.get('[role="dialog"]').within(() => {
-      cy.contains('h2', 'Update status');
+      cy.contains('h2', 'Update progress');
       cy.findField(/^Title/).should('be.disabled');
+      cy.findField('Estimate (working days)').should('be.disabled');
+      cy.findField('Progress %').should('be.enabled').clear().type('40');
     });
-    cy.pick('Status', 'Done');
+    cy.pick('Status', 'In progress');
     cy.get('[role="dialog"]').contains('button', 'Save').click();
     cy.contains('Updated E2E my task');
-    cy.get('tr[aria-label="Open E2E my task"]').should('contain', 'Done');
+    cy.get('tr[aria-label="Open E2E my task"]').should('contain', 'In progress').and('contain', '40%').click();
+    cy.pick('Status', 'Done');
+    cy.get('[role="dialog"]').contains('button', 'Save').click();
+    cy.get('tr[aria-label="Open E2E my task"]').should('contain', 'Done').and('contain', '100%');
   });
 
   it('changes your own password from the Account page', () => {

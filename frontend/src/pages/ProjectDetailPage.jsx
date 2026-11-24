@@ -21,6 +21,8 @@ import AllocationsPanel from '../components/allocations/AllocationsPanel';
 import ActivityPanel from '../components/audit/ActivityPanel';
 import BudgetPanel from '../components/budget/BudgetPanel';
 import DeliverablesPanel from '../components/deliverables/DeliverablesPanel';
+import ForecastCard from '../components/forecast/ForecastCard';
+import TimelinePanel from '../components/forecast/TimelinePanel';
 import projectShape from '../components/projectPropTypes';
 import { getProject } from '../services/projectsApi';
 import { formatDate } from '../utils/format';
@@ -28,6 +30,7 @@ import { formatDate } from '../utils/format';
 const TABS = [
   { value: 'overview', label: 'Overview' },
   { value: 'deliverables', label: 'Deliverables' },
+  { value: 'timeline', label: 'Timeline' },
   { value: 'allocations', label: 'Allocations' },
   { value: 'budget', label: 'Budget' },
   { value: 'activity', label: 'Activity', allowed: canReadProjectAudit },
@@ -44,7 +47,7 @@ function Detail({ label, children }) {
 
 Detail.propTypes = { label: PropTypes.string.isRequired, children: PropTypes.node };
 
-/** Overview tab: key facts and deliverable progress. */
+/** Overview tab: key facts, deliverable progress and the completion forecast. */
 function Overview({ project }) {
   const you = useYou();
   const total = project.deliverables_total ?? 0;
@@ -76,6 +79,7 @@ function Overview({ project }) {
           </Stack>
         )}
       </Box>
+      <ForecastCard project={project} />
     </Stack>
   );
 }
@@ -149,6 +153,7 @@ export default function ProjectDetailPage() {
           {tab === 'deliverables' && (
             <DeliverablesPanel project={project} onChanged={() => setReloadKey((key) => key + 1)} />
           )}
+          {tab === 'timeline' && <TimelinePanel project={project} />}
           {tab === 'allocations' && <AllocationsPanel project={project} />}
           {tab === 'budget' && <BudgetPanel project={project} onChanged={() => setReloadKey((key) => key + 1)} />}
           {tab === 'activity' && <ActivityPanel project={project} />}

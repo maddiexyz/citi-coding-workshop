@@ -33,6 +33,34 @@ function renderAs(role, width = 1200, result = Promise.resolve(PROJECTS)) {
 }
 
 describe('ProjectsPage', () => {
+  const FORECAST = [
+    { ...PROJECTS[0], end_date: '2027-03-09', forecast_end: '2027-03-19', forecast_status: 'late', forecast_slip_days: 10, forecast_confidence: 'high' },
+    { ...PROJECTS[1], forecast_end: '2027-02-11', forecast_status: 'on_track', forecast_slip_days: -11, forecast_confidence: 'low' },
+    { id: 3, code: 'DONE-1', name: 'Finished', status: 'completed', owner_id: 8, forecast_end: '2026-11-24', forecast_status: 'complete', forecast_slip_days: 20 },
+    { id: 4, code: 'NEW-1', name: 'Not estimated', status: 'active', owner_id: 8, forecast_end: null, forecast_status: 'no_estimates', forecast_slip_days: null },
+  ];
+
+  it('shows the forecast end with its slip in the table', async () => {
+    renderAs('viewer', 1200, Promise.resolve(FORECAST));
+    expect(await screen.findByRole('columnheader', { name: 'Forecast end' })).toBeInTheDocument();
+    const late = screen.getByRole('row', { name: /MINE-1/ });
+    expect(late).toHaveTextContent('19 Mar 2027');
+    expect(late).toHaveTextContent('10 days late');
+    const early = screen.getByRole('row', { name: /THEIRS-1/ });
+    expect(early).toHaveTextContent('11 Feb 2027');
+    expect(early).toHaveTextContent('11 days early');
+    expect(early).toHaveTextContent('low confidence');
+    expect(screen.getByRole('row', { name: /DONE-1/ })).not.toHaveTextContent(/late|early/);
+    expect(screen.getByRole('row', { name: /NEW-1/ })).not.toHaveTextContent(/late|early/);
+  });
+
+  it('shows the forecast end on mobile cards', async () => {
+    renderAs('viewer', 400, Promise.resolve(FORECAST));
+    const list = await screen.findByRole('list', { name: 'Projects' });
+    expect(list).toHaveTextContent('Forecast end19 Mar 202710 days late');
+    expect(screen.getAllByText('Forecast end')).toHaveLength(2);
+  });
+
   it('shows no write actions to a viewer', async () => {
     renderAs('viewer');
 

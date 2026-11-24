@@ -15,7 +15,11 @@ Routes (served at /api/deliverables; every route needs a Bearer token):
     POST   /{id}/dependencies   {"depends_on_id"}   -> 201 deliverable
     DELETE /{id}/dependencies/{depends_on_id}       -> 204
 
-Deliverable fields: title, description, status, due_date, assignee_resource_id.
+Deliverable fields: title, description, status, due_date, assignee_resource_id,
+estimate_days (working days of duration, 1-365), earliest_start, progress_pct (0-100).
+On PUT the first five are replaced as sent; the three schedule fields keep their
+stored value when the key is left out (so older clients cannot clear them), and
+status "done" always means progress 100.
 "blocked" and "overdue" are computed by the deliverable_details view.
 Who may change what is decided in common.permissions; every change is
 written to the audit log in the same transaction.
@@ -26,15 +30,22 @@ from psycopg import errors
 from common import audit, db
 from common.auth import linked_resource_id, require_auth
 from common.http import ApiError, Request, json_response, make_handler, parse_bool, parse_id
-from common.permissions import can_delete_deliverables, can_edit_deliverables, can_update_deliverable_status
+from common.permissions import can_delete_deliverables, can_edit_deliverables, can_update_deliverable_progress
 from common.validation import Validator
 
 STATUSES = ("not_started", "in_progress", "done", "cancelled")
+SCHEDULE_FIELDS = ("estimate_days", "earliest_start", "progress_pct")
+MAX_ESTIMATE_DAYS = 365
 
 
-def validate_deliverable(data: dict, *, creating: bool) -> dict:
+def validate_deliverable(data: dict, *, creating: bool, current: dict | None = None) -> dict:
     """
     Validate the editable deliverable fields (and project_id when creating).
+
+    Args:
+        data: The request body.
+        creating: True for POST (project_id is then required).
+        current: The stored deliverable on PUT; schedule fields missing from the body keep its values.
 
     Raises:
         ApiError: 400 with a message per invalid field.
@@ -49,8 +60,24 @@ def validate_deliverable(data: dict, *, creating: bool) -> dict:
     assignee = validator.integer("assignee_resource_id")
     if assignee and not db.fetch_one("SELECT 1 FROM resources WHERE id = %s AND is_active", (assignee,)):
         validator.add_error("assignee_resource_id", "Must be an active resource")
+    estimate = validator.integer("estimate_days")
+    if estimate and estimate > MAX_ESTIMATE_DAYS:
+        validator.add_error("estimate_days", f"Must be at most {MAX_ESTIMATE_DAYS}")
+    validator.date("earliest_start")
+    progress = validator.integer("progress_pct", minimum=0)
+    if progress and progress > 100:
+        validator.add_error("progress_pct", "Must be at most 100")
     validator.raise_if_errors()
-    return validator.clean
+    clean = validator.clean
+    if current:
+        for field in SCHEDULE_FIELDS:
+            if field not in data:
+                clean[field] = current[field]
+    if clean["progress_pct"] is None:      # not nullable: null means "leave it" (0 for a new deliverable)
+        clean["progress_pct"] = current["progress_pct"] if current else 0
+    if clean["status"] == "done":
+        clean["progress_pct"] = 100
+    return clean
 
 
 def load_project(project_id: int, *, missing_status: int = 404) -> dict:
@@ -161,9 +188,10 @@ def create_deliverable(request: Request) -> dict:
         row = db.fetch_one(
             """
             INSERT INTO deliverables (project_id, title, description, status, due_date, assignee_resource_id,
-                                      completed_at, created_by)
+                                      estimate_days, earliest_start, progress_pct, completed_at, created_by)
             VALUES (%(project_id)s, %(title)s, %(description)s, %(status)s::deliverable_status, %(due_date)s,
-                    %(assignee_resource_id)s, CASE WHEN %(status)s::deliverable_status = 'done' THEN now() END,
+                    %(assignee_resource_id)s, %(estimate_days)s, %(earliest_start)s, %(progress_pct)s,
+                    CASE WHEN %(status)s::deliverable_status = 'done' THEN now() END,
                     %(created_by)s)
             RETURNING *
             """,
@@ -174,16 +202,16 @@ def create_deliverable(request: Request) -> dict:
     return json_response(201, with_dependencies(find_deliverable(row["id"])))
 
 
-def require_status_only(data: dict, deliverable: dict) -> None:
-    """403 unless the only field an assignee changed is the status."""
-    current = {
-        "title": deliverable["title"], "description": deliverable["description"],
-        "due_date": deliverable["due_date"], "assignee_resource_id": deliverable["assignee_resource_id"],
-    }
-    changed = sorted(field for field, value in current.items() if data.get(field) != value)
+ASSIGNEE_LOCKED_FIELDS = ("title", "description", "due_date", "assignee_resource_id", "estimate_days",
+                          "earliest_start")
+
+
+def require_progress_only(data: dict, deliverable: dict) -> None:
+    """403 unless the only fields an assignee changed are the status and the progress."""
+    changed = sorted(field for field in ASSIGNEE_LOCKED_FIELDS if data.get(field) != deliverable[field])
     if changed:
-        raise ApiError(403, "forbidden", "As the assignee you can only change the status",
-                       {field: "Only the status can be changed by the assignee" for field in changed})
+        raise ApiError(403, "forbidden", "As the assignee you can only change the status and progress",
+                       {field: "Only the status and progress can be changed by the assignee" for field in changed})
 
 
 @require_auth
@@ -192,16 +220,16 @@ def update_deliverable(request: Request, deliverable_id: str) -> dict:
     Replace a deliverable's editable fields (it stays in its project).
 
     Editors (admin, owning PM, assigned team lead) may change everything; the
-    deliverable's assignee may change only its status.
+    deliverable's assignee may change only its status and progress.
     """
     deliverable = find_deliverable(parse_id(deliverable_id, "Deliverable id"))
     project = load_project(deliverable["project_id"])
     editor = can_edit_deliverables(request.user, project)
-    if not editor and not can_update_deliverable_status(request.user, deliverable, linked_resource_id(request.user)):
+    if not editor and not can_update_deliverable_progress(request.user, deliverable, linked_resource_id(request.user)):
         raise ApiError(403, "forbidden", "You cannot change deliverables in this project")
-    data = validate_deliverable(request.json(), creating=False)
+    data = validate_deliverable(request.json(), creating=False, current=deliverable)
     if not editor:
-        require_status_only(data, deliverable)
+        require_progress_only(data, deliverable)
     with db.transaction():
         before = db.fetch_one("SELECT * FROM deliverables WHERE id = %s", (deliverable["id"],))
         after = db.fetch_one(
@@ -209,6 +237,8 @@ def update_deliverable(request: Request, deliverable_id: str) -> dict:
             UPDATE deliverables
             SET title = %(title)s, description = %(description)s, status = %(status)s::deliverable_status,
                 due_date = %(due_date)s, assignee_resource_id = %(assignee_resource_id)s,
+                estimate_days = %(estimate_days)s, earliest_start = %(earliest_start)s,
+                progress_pct = %(progress_pct)s,
                 completed_at = CASE WHEN %(status)s::deliverable_status = 'done'
                                     THEN COALESCE(completed_at, now()) END,
                 updated_at = now()

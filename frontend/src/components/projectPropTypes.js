@@ -24,6 +24,10 @@ const projectShape = PropTypes.shape({
   deliverable_count: PropTypes.number,
   allocation_count: PropTypes.number,
   budget_entry_count: PropTypes.number,
+  forecast_end: PropTypes.string,
+  forecast_status: PropTypes.string,
+  forecast_slip_days: PropTypes.number,
+  forecast_confidence: PropTypes.string,
 });
 
 export default projectShape;

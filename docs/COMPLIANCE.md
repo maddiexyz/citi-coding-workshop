@@ -4,6 +4,18 @@ Each requirement of the [Full Stack Guide](./full-stack.md), with its status
 and where the evidence is. Status: ✅ met · 🟡 partly · ❌ not done (with the
 reason). Numbers are from the last run (see [README → Test](../README.md#test)).
 
+## The brief's pain points
+
+The [problem statement](./problem-statement.md) lists seven questions (mapped
+in the [README](../README.md#what-it-answers)) and three consequences of
+ACME's fragmented tracking:
+
+| Pain point | Status | Evidence |
+| --- | --- | --- |
+| Missed deadlines | ✅ | At-risk dashboard with reasons (`backend/_common/risk.py`, `test_dashboard_risk.py`) |
+| Resource conflicts | ✅ | Over-allocation flags per person and week (`test_resources_allocations.py`, Cypress `04-allocations`) |
+| "Difficulty in forecasting project completion dates" | ✅ (v2.0) | Critical-path forecast per project with confidence and SPI: `backend/_common/schedule.py` (pure, `test_schedule.py` with hand-computed dates), `GET /api/projects/{id}/forecast` (`test_forecast_api.py`), `forecast_late` risk reason, Overview card, projects-list column and Timeline tab (`ForecastCard.test.jsx`, `TimelinePanel.test.jsx`, Cypress `13-forecast`, axe on the Timeline in `09-accessibility`) |
+
 ## Technical competencies
 
 ### 1. Implementation
@@ -33,8 +45,8 @@ reason). Numbers are from the last run (see [README → Test](../README.md#test)
 ### 4. Testing
 | Requirement | Status | Evidence |
 | --- | --- | --- |
-| Unit and integration tests for business logic and API contracts | ✅ | 163 backend tests against real PostgreSQL |
-| Frontend behaviour for core journeys and error states | ✅ | 191 Vitest tests; 19 Cypress tests |
+| Unit and integration tests for business logic and API contracts | ✅ | 233 backend tests, the service ones against real PostgreSQL; the schedule engine is a pure function with hand-computed cases |
+| Frontend behaviour for core journeys and error states | ✅ | 272 Vitest tests; 28 Cypress tests |
 | Manual/automated validation end to end through persistence | ✅ | Cypress against the local stack; curl acceptance scripts |
 | Test artifacts documented | ✅ | README test table; `changes/phase*.md`; this file |
 
@@ -55,15 +67,15 @@ reason). Numbers are from the last run (see [README → Test](../README.md#test)
 | Backend error-handling tests | ✅ | validation, 401/403/404/409/429 cases in every test file |
 | Frontend component tests (guide: Jest + RTL) | ✅ | Vitest + React Testing Library (Jest-compatible API) |
 | Frontend API tests with mocked responses | ✅ | `services/api.test.js`, `services/clients.test.js` |
-| End-to-end tests (Cypress or Selenium) | ✅ | `frontend/cypress/e2e/*` (19 tests) |
+| End-to-end tests (Cypress or Selenium) | ✅ | `frontend/cypress/e2e/*` (28 tests) |
 | Load testing (Artillery or JMeter) | ✅ | `tests/load/` scenario and runner. Local smoke: 548 requests, all 200, p95 36 ms. Cloud profile (`tests/load/run.sh cloud`, 2026-11-25, peak 20 new users per second): 6,340 requests, all 200, 0 failed virtual users, p95 55 ms, p99 518 ms (Lambda cold starts during the ramp). A local run at the cloud profile overloaded LocalStack (one container and DB connection per concurrent request), which is why the local profile is a smoke test |
 | Performance monitoring | 🟡 | CloudWatch duration reports used to size the auth Lambda (4.6 s → 0.55 s per login); no dashboards or alarms |
 
 ### Coverage goals
 | Goal | Target | Measured |
 | --- | --- | --- |
-| Backend | 80% | 95% lines+branches, 193 tests (gate in `backend/.coveragerc`) |
-| Frontend | 80% | 93% lines, 91% statements, 86% branches, 85% functions, 239 tests (gate in `vite.config.js`) |
+| Backend | 80% | 96% lines+branches, 233 tests (gate in `backend/.coveragerc`) |
+| Frontend | 80% | 93% lines, 91% statements, 87% branches, 86% functions, 272 tests (gate in `vite.config.js`) |
 | API endpoints, all CRUD | 90% | every service 92–99% (allocations 96, audit 98, auth 97, budget 93, dashboard 93, deliverables 99, projects 98, resources 93, users 92); every API client covered by `clients.test.js` |
 | Error handling | 90% | every error status has tests; remaining uncovered lines are mostly defensive branches (e.g. reconnect after a lost DB connection) |
 | Critical user paths, end to end | 100% | every path listed in the README is a Cypress test |

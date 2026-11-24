@@ -296,12 +296,15 @@ class Seeder:  # pylint: disable=too-many-instance-attributes
         _, data = self.admin.call("list deliverables", "GET", "/deliverables", query={"project_id": pid})
         by_title = {d["title"]: d for d in data["items"]}
         for d in (x for x in self.plan["deliverables"] if x["project"] == p["code"]):
+            schedule = {"estimate_days": d["estimate"],
+                        "earliest_start": None if d["earliest_start"] is None else day(d["earliest_start"])}
             if d["title"] in by_title:
                 self.count("deliverables", False)
+                by_title[d["title"]] = self.fill_schedule(p, d, by_title[d["title"]], schedule)
                 continue
             _, created = pm().call(f"create deliverable {p['code']} / {d['title']}", "POST", "/deliverables", body={
                 "project_id": pid, "title": d["title"], "status": "not_started", "due_date": day(d["due"]),
-                "assignee_resource_id": self.ids["person"][d["assignee"]]})
+                "assignee_resource_id": self.ids["person"][d["assignee"]], **schedule})
             by_title[d["title"]] = created
             self.count("deliverables", True)
         self.ids.setdefault("deliverables", {})[p["code"]] = by_title
@@ -342,6 +345,25 @@ class Seeder:  # pylint: disable=too-many-instance-attributes
                     "spent_on": day(e["spent_on"]), "description": e["description"]})
                 self.count("spend entries", True)
 
+    def fill_schedule(self, p: dict, d: dict, current: dict, schedule: dict) -> dict:
+        """
+        v2: give a deliverable seeded by an earlier version its estimate, earliest
+        start and progress, as the admin. Only a deliverable without an estimate
+        is touched (so a rerun on a later day rewrites nothing), and every other
+        field is sent back exactly as it is.
+        """
+        if current.get("estimate_days") is not None:
+            self.count("schedule fields", False)
+            return current
+        body = {"title": current["title"], "description": current.get("description"), "status": current["status"],
+                "due_date": current["due_date"], "assignee_resource_id": current["assignee_resource_id"], **schedule}
+        if current["status"] == d["status"]:        # otherwise step 3 sets the progress with the status
+            body["progress_pct"] = d["progress"]
+        _, updated = self.admin.call(f"fill estimate of {p['code']} / {d['title']}", "PUT",
+                                     f"/deliverables/{current['id']}", body=body)
+        self.count("schedule fields", True)
+        return updated
+
     # --- step 3: assignees and team leads --------------------------------------------------
 
     def statuses(self):
@@ -355,8 +377,10 @@ class Seeder:  # pylint: disable=too-many-instance-attributes
                 continue
             project = projects[d["project"]]
             actor = account_of.get(d["assignee"]) or project["team_lead"] or project["owner"]
+            # The schedule fields are left out: the API keeps them, and an assignee may not change them
             body = {"title": current["title"], "description": current.get("description"), "status": d["status"],
-                    "due_date": current["due_date"], "assignee_resource_id": current["assignee_resource_id"]}
+                    "due_date": current["due_date"], "assignee_resource_id": current["assignee_resource_id"],
+                    "progress_pct": d["progress"]}
             self.as_user(actor).call(f"set status of {d['project']} / {d['title']} to {d['status']}", "PUT",
                                      f"/deliverables/{current['id']}", body=body)
             self.count("status updates", True)
@@ -438,7 +462,7 @@ class Seeder:  # pylint: disable=too-many-instance-attributes
 
     def summary(self):  # pylint: disable=too-many-locals
         """Counts per entity, and the dashboard compared with what the spec predicts."""
-        expected = demo.expected_flags(self.plan)
+        expected = demo.expected_flags(self.plan, today())
         print("\nSummary (created / already there)")
         for entity, (created, existing) in self.counts.items():
             print(f"   {entity:<24} {created:>4} / {existing}")
@@ -483,7 +507,7 @@ def rupees(amount: str) -> str:
 
 def print_plan(plan: dict) -> None:
     """--dry-run: what would be created on an empty system (nothing is called)."""
-    expected = demo.expected_flags(plan)
+    expected = demo.expected_flags(plan, today())
     print("Dry run: nothing is sent. On an empty system this creates:")
     for key in ("departments", "users", "people", "projects", "deliverables", "dependencies", "allocations",
                 "spend"):

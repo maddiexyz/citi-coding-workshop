@@ -14,7 +14,9 @@ import { formatDate } from '../../utils/format';
 import StatusChip from '../StatusChip';
 import DeliverableFlags from './DeliverableFlags';
 
-function ChainList({ items, nodes, depth, onOpen }) {
+const NONE = new Set();
+
+function ChainList({ items, nodes, depth, onOpen, criticalIds }) {
   const you = useYou();
   return (
     <Box component="ul" sx={{ listStyle: 'none', m: 0, pl: depth === 0 ? 0 : { xs: 2, sm: 4 } }}>
@@ -23,6 +25,7 @@ function ChainList({ items, nodes, depth, onOpen }) {
         let accent = 'divider';
         if (node.is_overdue) accent = 'error.main';
         else if (node.is_blocked) accent = 'warning.main';
+        else if (criticalIds.has(node.id)) accent = 'primary.main';
         return (
           <Box component="li" key={item.key} sx={{ mt: 1 }}>
             <Box sx={{ borderLeft: 4, borderColor: accent, pl: 1.5, py: 0.5 }}>
@@ -36,14 +39,14 @@ function ChainList({ items, nodes, depth, onOpen }) {
                   {node.title}
                 </Button>
                 <StatusChip status={node.status} statuses={DELIVERABLE_STATUSES} />
-                <DeliverableFlags isBlocked={node.is_blocked} isOverdue={node.is_overdue} />
+                <DeliverableFlags isBlocked={node.is_blocked} isOverdue={node.is_overdue} isCritical={criticalIds.has(node.id)} />
                 <Typography variant="body2" color="text.secondary">
                   {[you.resource(node.assignee_resource_id, node.assignee_name), node.due_date && `due ${formatDate(node.due_date)}`].filter(Boolean).join(' · ')}
                 </Typography>
               </Stack>
             </Box>
             {item.children.length > 0 && (
-              <ChainList items={item.children} nodes={nodes} depth={depth + 1} onOpen={onOpen} />
+              <ChainList items={item.children} nodes={nodes} depth={depth + 1} onOpen={onOpen} criticalIds={criticalIds} />
             )}
           </Box>
         );
@@ -59,14 +62,16 @@ ChainList.propTypes = {
   nodes: PropTypes.instanceOf(Map).isRequired,
   depth: PropTypes.number.isRequired,
   onOpen: PropTypes.func.isRequired,
+  criticalIds: PropTypes.instanceOf(Set).isRequired,
 };
 
 /**
  * Every dependency chain in a project, top-down: what has to finish first is
  * at the top, what waits on it is indented below. Blocked deliverables have
- * an amber edge, overdue ones a red edge. Selecting one opens it.
+ * an amber edge, overdue ones a red edge, and those on the forecast's critical
+ * path (criticalIds) a "Critical" chip. Selecting one opens it.
  */
-export default function ChainView({ projectId, reloadKey, onOpen }) {
+export default function ChainView({ projectId, reloadKey, onOpen, criticalIds = NONE }) {
   const [state, setState] = useState({ key: null, data: null, error: null });
   const key = `${projectId}:${reloadKey}`;
 
@@ -93,9 +98,9 @@ export default function ChainView({ projectId, reloadKey, onOpen }) {
   return (
     <Box component="nav" aria-label="Dependency chain">
       <Typography variant="body2" color="text.secondary">
-        Each deliverable is listed under the one it depends on. Amber edge: blocked; red edge: overdue.
+        Each deliverable is listed under the one it depends on. Amber edge: blocked; red edge: overdue. “Critical” marks the chain that sets the forecast end.
       </Typography>
-      <ChainList items={buildTree(state.data.rows)} nodes={nodes} depth={0} onOpen={onOpen} />
+      <ChainList items={buildTree(state.data.rows)} nodes={nodes} depth={0} onOpen={onOpen} criticalIds={criticalIds} />
     </Box>
   );
 }
@@ -104,4 +109,5 @@ ChainView.propTypes = {
   projectId: PropTypes.number.isRequired,
   reloadKey: PropTypes.number.isRequired,
   onOpen: PropTypes.func.isRequired,
+  criticalIds: PropTypes.instanceOf(Set),
 };

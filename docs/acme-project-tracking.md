@@ -225,6 +225,34 @@ passed, are evaluated. Signals (computed at query time, never stored):
 **Over budget is a separate flag**, shown next to the at-risk flag, not a
 reason for it.
 
+### Completion forecast (v2.0)
+- Deliverables carry `estimate_days` (working days, 1–365), `earliest_start`
+  and `progress_pct` (0–100); migration `009_deliverable_estimates.sql`. On
+  `PUT /api/deliverables/{id}` these three keep their stored value when the
+  key is left out, so a client written for v1.x cannot clear them; the older
+  fields are still replaced as sent. Status `done` always means progress 100.
+- `backend/_common/schedule.py` is the engine: a pure function (no database,
+  no clock) that runs the critical path method on a Monday–Friday calendar.
+  `backend/_common/forecast.py` loads a project's deliverables and links in
+  two queries and calls it; "today" is the database's date.
+- `GET /api/projects/{id}/forecast` returns `forecast_end`, `planned_end`,
+  `slip_days`, `status` (`on_track`, `late`, `complete`, `no_estimates`,
+  `no_deliverables`), `confidence`, `spi`, `critical_path` and one item per
+  deliverable (start, finish, days left, float, critical, assumed).
+  `GET /api/projects` adds a four-field summary per project.
+- Rules: a remaining deliverable needs `max(1, ceil(estimate × (1 − progress)))`
+  days; one without an estimate takes the project's median estimate and is
+  marked assumed; not-started work begins on the latest of today, its earliest
+  start, the project start and the working day after its last predecessor;
+  in-progress work continues from today; done work holds nothing up; cancelled
+  work is bridged. Confidence is the share of remaining deliverables with an
+  estimate (high ≥ 80%, medium ≥ 50%).
+- Risk: `forecast_late` (medium) joins `risk_reasons` when the forecast ends
+  after the end date at high or medium confidence. Nothing derived is stored.
+- UI: *Completion forecast* on the project Overview, *Critical* chips in the
+  deliverables list and chain, *Forecast end* in the projects list, and the
+  *Timeline* tab (SVG Gantt, table view, list on mobile).
+
 ### Sign-in, sessions and users
 
 - **Access token:** a 15-minute JWT in the `Authorization` header, kept in
@@ -258,7 +286,7 @@ reason for it.
 - *My work* (landing page for all but admins): my overdue, blocked and
   due-within-7-days deliverables, my next 8 weeks of allocations and load,
   and the projects I own or lead with their flags.
-- The assignee of a deliverable may change its status, and nothing else.
+- The assignee of a deliverable may change its status and progress %, and nothing else.
 
 ### Departments
 
@@ -295,8 +323,11 @@ status to *completed* or *cancelled*; use delete only to remove mistakes.
   made through the API only, not direct SQL.
 - **Partial weeks count in full** for over-allocation: a two-day allocation of
   20 h/week adds 20 h to that week. Simple and predictable, but it can flag a
-  week that is really fine. Create other users with SQL, e.g.
-  `INSERT INTO users (email, password_hash, full_name, role) VALUES ('pm@acme.test', crypt('…', gen_salt('bf', 12)), 'Pat PM', 'project_manager');`
+  week that is really fine.
+- **The forecast is a duration-based schedule**: no resource levelling
+  (independent deliverables run in parallel whoever is assigned), no holiday
+  calendar (Monday to Friday), and estimate-based rather than velocity-based.
+  SPI assumes each deliverable is planned as late as its due date allows.
 - **Compiled dependencies** (`bcrypt`, `psycopg[binary]`) must match the
   Lambda runtime (Python 3.13, x86_64). `start-dev.sh` installs wheels for that
   target; for AWS, Terraform's Lambda module builds with the `python3.13`
