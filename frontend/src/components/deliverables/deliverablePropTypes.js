@@ -16,6 +16,8 @@ const deliverableShape = PropTypes.shape({
   description: PropTypes.string,
   status: PropTypes.string.isRequired,
   due_date: PropTypes.string,
+  assignee_resource_id: PropTypes.number,
+  assignee_name: PropTypes.string,
   is_blocked: PropTypes.bool.isRequired,
   is_overdue: PropTypes.bool.isRequired,
   predecessor_count: PropTypes.number,

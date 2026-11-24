@@ -16,6 +16,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import useAuth from '../auth/useAuth';
 import { canChangeProject } from '../auth/permissions';
 import ProjectStatusChip from '../components/ProjectStatusChip';
+import AllocationsPanel from '../components/allocations/AllocationsPanel';
 import DeliverablesPanel from '../components/deliverables/DeliverablesPanel';
 import projectShape from '../components/projectPropTypes';
 import { getProject } from '../services/projectsApi';
@@ -24,6 +25,7 @@ import { formatDate } from '../utils/format';
 const TABS = [
   { value: 'overview', label: 'Overview' },
   { value: 'deliverables', label: 'Deliverables' },
+  { value: 'allocations', label: 'Allocations' },
 ];
 
 function Detail({ label, children }) {
@@ -138,6 +140,7 @@ export default function ProjectDetailPage() {
           {tab === 'deliverables' && (
             <DeliverablesPanel project={project} onChanged={() => setReloadKey((key) => key + 1)} />
           )}
+          {tab === 'allocations' && <AllocationsPanel project={project} />}
         </Box>
       </Paper>
     </Stack>

@@ -23,3 +23,22 @@ export function formatProgress(project) {
   if (!total) return 'No deliverables';
   return `${project.deliverables_done ?? 0} / ${total} done`;
 }
+
+/**
+ * Format hours, e.g. "37.5 h" (API decimals arrive as strings like "37.50").
+ * @param {string|number|null} hours
+ * @returns {string}
+ */
+export function formatHours(hours) {
+  if (hours === null || hours === undefined || hours === '') return '—';
+  return `${Number(hours).toLocaleString(undefined, { maximumFractionDigits: 2 })} h`;
+}
+
+/**
+ * Label for a Monday-based week, e.g. "Week of Jan 6, 2030".
+ * @param {string} weekStart "YYYY-MM-DD"
+ * @returns {string}
+ */
+export function formatWeek(weekStart) {
+  return `Week of ${formatDate(weekStart)}`;
+}

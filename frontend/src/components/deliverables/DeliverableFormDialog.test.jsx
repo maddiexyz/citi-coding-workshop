@@ -34,10 +34,20 @@ describe('DeliverableFormDialog', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(createDeliverable).toHaveBeenCalledWith({
-      project_id: 7, title: 'Spec', description: null, status: 'not_started', due_date: null,
+      project_id: 7, title: 'Spec', description: null, status: 'not_started', due_date: null, assignee_resource_id: null,
     });
     expect(onChanged).toHaveBeenCalledWith({ id: 1, title: 'Spec' }, 'Created');
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it('offers active people as assignees', async () => {
+    createDeliverable.mockResolvedValue({ id: 2, title: 'Spec' });
+    renderDialog({ people: [{ id: 4, full_name: 'Pat Lee' }] });
+    await userEvent.type(screen.getByLabelText(/title/i), 'Spec');
+    await userEvent.click(screen.getByRole('combobox', { name: 'Assignee' }));
+    await userEvent.click(screen.getByRole('option', { name: 'Pat Lee' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(createDeliverable).toHaveBeenLastCalledWith(expect.objectContaining({ assignee_resource_id: 4 }));
   });
 
   it('shows backend field errors next to the field', async () => {

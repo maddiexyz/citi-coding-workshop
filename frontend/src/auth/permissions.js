@@ -56,3 +56,20 @@ export function canEditDeliverables(user, project) {
 export function canDeleteDeliverables(user, project) {
   return canChangeProject(user, project);
 }
+
+/**
+ * @param {{role: string}|null} user
+ * @returns {boolean} True if the user may create, edit or delete resources (admin only).
+ */
+export function canManageResources(user) {
+  return user?.role === 'admin';
+}
+
+/**
+ * @param {{id: number, role: string}|null} user
+ * @param {{owner_id: number}} project
+ * @returns {boolean} True if the user may change allocations on the project (admin or the owning PM).
+ */
+export function canManageAllocations(user, project) {
+  return canChangeProject(user, project);
+}

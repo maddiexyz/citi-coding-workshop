@@ -20,7 +20,7 @@ import DependencyEditor from './DependencyEditor';
 import DeliverableFlags from './DeliverableFlags';
 import { deliverableSummaryShape } from './deliverablePropTypes';
 
-const EMPTY = { title: '', description: '', status: 'not_started', due_date: '' };
+const EMPTY = { title: '', description: '', status: 'not_started', due_date: '', assignee_resource_id: '' };
 
 function toFormValues(deliverable) {
   return Object.fromEntries(Object.keys(EMPTY).map((key) => [key, deliverable[key] ?? '']));
@@ -32,7 +32,7 @@ function toFormValues(deliverable) {
  * onChanged is called after any save (including dependency changes).
  */
 export default function DeliverableFormDialog({
-  open, projectId, deliverableId = null, readOnly = false, projectDeliverables, onClose, onChanged,
+  open, projectId, deliverableId = null, readOnly = false, projectDeliverables, people = [], onClose, onChanged,
 }) {
   const fullScreen = useMediaQuery({ maxWidth: 599 });
   const isEdit = deliverableId !== null;
@@ -75,6 +75,7 @@ export default function DeliverableFormDialog({
       description: values.description.trim() || null,
       status: values.status,
       due_date: values.due_date || null,
+      assignee_resource_id: values.assignee_resource_id === '' ? null : Number(values.assignee_resource_id),
     };
     try {
       const saved = isEdit
@@ -129,6 +130,14 @@ export default function DeliverableFormDialog({
                 </TextField>
                 <TextField label="Due date" type="date" {...fieldProps('due_date')} slotProps={{ inputLabel: { shrink: true } }} />
               </Stack>
+              <TextField label="Assignee" select {...fieldProps('assignee_resource_id')}>
+                <MenuItem value="">Unassigned</MenuItem>
+                {/* Keep the current assignee selectable even if they are no longer active */}
+                {deliverable?.assignee_resource_id && !people.some((p) => p.id === deliverable.assignee_resource_id) && (
+                  <MenuItem value={deliverable.assignee_resource_id}>{deliverable.assignee_name}</MenuItem>
+                )}
+                {people.map((person) => <MenuItem key={person.id} value={person.id}>{person.full_name}</MenuItem>)}
+              </TextField>
               {deliverable && (
                 <>
                   <Divider />
@@ -162,6 +171,7 @@ DeliverableFormDialog.propTypes = {
   deliverableId: PropTypes.number,
   readOnly: PropTypes.bool,
   projectDeliverables: PropTypes.arrayOf(deliverableSummaryShape).isRequired,
+  people: PropTypes.arrayOf(PropTypes.shape({ id: PropTypes.number.isRequired, full_name: PropTypes.string.isRequired })),
   onClose: PropTypes.func.isRequired,
   onChanged: PropTypes.func.isRequired,
 };

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  canChangeProject, canCreateProject, canDeleteDeliverables, canEditDeliverables, isAssignedTeamLead,
+  canChangeProject, canCreateProject, canDeleteDeliverables, canEditDeliverables, canManageAllocations,
+  canManageResources, isAssignedTeamLead,
 } from './permissions';
 
 const project = { owner_id: 1 };
@@ -52,5 +53,20 @@ describe('deliverable permissions', () => {
   it('only counts a team lead as assigned on their own project', () => {
     expect(isAssignedTeamLead({ id: 5, role: 'team_lead' }, led)).toBe(true);
     expect(isAssignedTeamLead({ id: 5, role: 'team_lead' }, { owner_id: 1, team_lead_id: null })).toBe(false);
+  });
+});
+
+describe('resource and allocation permissions', () => {
+  const project = { owner_id: 1, team_lead_id: 5 };
+
+  it.each([
+    ['admin', 9, true, true],
+    ['project_manager', 1, false, true],
+    ['project_manager', 2, false, false],
+    ['team_lead', 5, false, false],
+    ['viewer', 3, false, false],
+  ])('%s #%s -> resources %s, allocations %s', (role, id, resources, allocations) => {
+    expect(canManageResources({ id, role })).toBe(resources);
+    expect(canManageAllocations({ id, role }, project)).toBe(allocations);
   });
 });

@@ -12,6 +12,7 @@ import AddIcon from '@mui/icons-material/Add';
 import useAuth from '../../auth/useAuth';
 import { canDeleteDeliverables, canEditDeliverables } from '../../auth/permissions';
 import { deleteDeliverable, listDeliverables } from '../../services/deliverablesApi';
+import { listResources } from '../../services/resourcesApi';
 import useDebouncedValue from '../../utils/useDebouncedValue';
 import ConfirmDialog from '../ConfirmDialog';
 import projectShape from '../projectPropTypes';
@@ -19,7 +20,7 @@ import DeliverableFilters from './DeliverableFilters';
 import DeliverableFormDialog from './DeliverableFormDialog';
 import DeliverableList from './DeliverableList';
 
-const NO_FILTERS = { search: '', status: '', blocked: false, overdue: false };
+const NO_FILTERS = { search: '', status: '', assignee: '', blocked: false, overdue: false };
 
 /** The Deliverables tab of a project: filters, list, create/edit dialog and delete. */
 export default function DeliverablesPanel({ project, onChanged }) {
@@ -31,6 +32,7 @@ export default function DeliverablesPanel({ project, onChanged }) {
   const [filters, setFilters] = useState(NO_FILTERS);
   const search = useDebouncedValue(filters.search.trim());
   const [all, setAll] = useState([]);
+  const [people, setPeople] = useState([]);
   const [result, setResult] = useState({ key: null, items: [], error: null });
   const [actionError, setActionError] = useState(null);
   const [dialog, setDialog] = useState(null); // {id: number|null}
@@ -39,9 +41,9 @@ export default function DeliverablesPanel({ project, onChanged }) {
   const [message, setMessage] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
 
-  const filtered = Boolean(search || filters.status || filters.blocked || filters.overdue);
+  const filtered = Boolean(search || filters.status || filters.assignee || filters.blocked || filters.overdue);
   // The list is loading while the shown result belongs to an older request
-  const requestKey = JSON.stringify([project.id, search, filters.status, filters.blocked, filters.overdue, reloadKey]);
+  const requestKey = JSON.stringify([project.id, search, filters.status, filters.assignee, filters.blocked, filters.overdue, reloadKey]);
   const loading = result.key !== requestKey;
 
   // A newer request cancels an older one, so slow responses never win
@@ -51,13 +53,23 @@ export default function DeliverablesPanel({ project, onChanged }) {
       project_id: project.id,
       q: search,
       status: filters.status,
+      assignee: filters.assignee,
       blocked: filters.blocked || undefined,
       overdue: filters.overdue || undefined,
     })
       .then((items) => !cancelled && setResult({ key: requestKey, items, error: null }))
       .catch((err) => !cancelled && setResult({ key: requestKey, items: [], error: err.message }));
     return () => { cancelled = true; };
-  }, [requestKey, project.id, search, filters.status, filters.blocked, filters.overdue]);
+  }, [requestKey, project.id, search, filters.status, filters.assignee, filters.blocked, filters.overdue]);
+
+  // Active people, for the assignee picker and filter
+  useEffect(() => {
+    let cancelled = false;
+    listResources({ active: true })
+      .then((data) => !cancelled && setPeople(data.items))
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // Every deliverable of the project, for the dependency picker
   useEffect(() => {
@@ -125,7 +137,7 @@ export default function DeliverablesPanel({ project, onChanged }) {
           </Button>
         )}
       </Stack>
-      <DeliverableFilters filters={filters} onChange={setFilters} />
+      <DeliverableFilters filters={filters} people={people} onChange={setFilters} />
       {result.error && <Alert severity="error">{result.error}</Alert>}
       {actionError && <Alert severity="error" onClose={() => setActionError(null)}>{actionError}</Alert>}
       {content}
@@ -138,6 +150,7 @@ export default function DeliverablesPanel({ project, onChanged }) {
           deliverableId={dialog.id}
           readOnly={!canEdit}
           projectDeliverables={all}
+          people={people}
           onClose={() => setDialog(null)}
           onChanged={changed}
         />

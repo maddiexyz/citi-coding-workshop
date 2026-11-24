@@ -53,7 +53,7 @@ export default function DeliverableList({ deliverables, isDesktop, canDelete, on
                   <StatusChip status={item.status} statuses={DELIVERABLE_STATUSES} />
                 </Stack>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  Due {formatDate(item.due_date)}
+                  {item.assignee_name ?? 'Unassigned'} · Due {formatDate(item.due_date)}
                   {item.predecessor_count > 0 && ` · depends on ${item.predecessor_count}`}
                 </Typography>
                 <DeliverableFlags isBlocked={item.is_blocked} isOverdue={item.is_overdue} />
@@ -77,6 +77,7 @@ export default function DeliverableList({ deliverables, isDesktop, canDelete, on
           <TableRow>
             <TableCell>Title</TableCell>
             <TableCell>Status</TableCell>
+            <TableCell>Assignee</TableCell>
             <TableCell>Due</TableCell>
             <TableCell>Depends on</TableCell>
             <TableCell>Flags</TableCell>
@@ -96,6 +97,7 @@ export default function DeliverableList({ deliverables, isDesktop, canDelete, on
             >
               <TableCell sx={{ fontWeight: 600 }}>{item.title}</TableCell>
               <TableCell><StatusChip status={item.status} statuses={DELIVERABLE_STATUSES} /></TableCell>
+              <TableCell>{item.assignee_name ?? '—'}</TableCell>
               <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(item.due_date)}</TableCell>
               <TableCell>{item.predecessor_count || '—'}</TableCell>
               <TableCell><DeliverableFlags isBlocked={item.is_blocked} isOverdue={item.is_overdue} /></TableCell>

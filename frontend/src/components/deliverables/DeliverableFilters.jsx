@@ -9,7 +9,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import { DELIVERABLE_STATUSES } from '../../constants/deliverableStatus';
 
 /** Search box, status filter and blocked/overdue switches for a deliverables list. */
-export default function DeliverableFilters({ filters, onChange }) {
+export default function DeliverableFilters({ filters, people = [], onChange }) {
   const set = (name) => (event) => onChange({ ...filters, [name]: event.target.value });
   const toggle = (name) => (event) => onChange({ ...filters, [name]: event.target.checked });
   return (
@@ -38,6 +38,18 @@ export default function DeliverableFilters({ filters, onChange }) {
           <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
         ))}
       </TextField>
+      <TextField
+        select
+        label="Assignee"
+        value={filters.assignee}
+        onChange={set('assignee')}
+        size="small"
+        sx={{ minWidth: 170 }}
+        slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }}
+      >
+        <MenuItem value="">Anyone</MenuItem>
+        {people.map((person) => <MenuItem key={person.id} value={person.id}>{person.full_name}</MenuItem>)}
+      </TextField>
       <Stack direction="row">
         <FormControlLabel control={<Switch checked={filters.blocked} onChange={toggle('blocked')} />} label="Blocked" />
         <FormControlLabel control={<Switch checked={filters.overdue} onChange={toggle('overdue')} />} label="Overdue" />
@@ -50,8 +62,10 @@ DeliverableFilters.propTypes = {
   filters: PropTypes.shape({
     search: PropTypes.string.isRequired,
     status: PropTypes.string.isRequired,
+    assignee: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
     blocked: PropTypes.bool.isRequired,
     overdue: PropTypes.bool.isRequired,
   }).isRequired,
+  people: PropTypes.arrayOf(PropTypes.shape({ id: PropTypes.number.isRequired, full_name: PropTypes.string.isRequired })),
   onChange: PropTypes.func.isRequired,
 };

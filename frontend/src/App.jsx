@@ -5,6 +5,8 @@ import LoginPage from './pages/LoginPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import ProjectFormPage from './pages/ProjectFormPage';
 import ProjectsPage from './pages/ProjectsPage';
+import ResourceDetailPage from './pages/ResourceDetailPage';
+import ResourcesPage from './pages/ResourcesPage';
 
 /**
  * Wrap a page so it needs a signed-in user and gets the app frame.
@@ -27,6 +29,8 @@ export default function App() {
       <Route path="/projects/new" element={protectedPage(<ProjectFormPage />)} />
       <Route path="/projects/:id" element={protectedPage(<ProjectDetailPage />)} />
       <Route path="/projects/:id/edit" element={protectedPage(<ProjectFormPage />)} />
+      <Route path="/resources" element={protectedPage(<ResourcesPage />)} />
+      <Route path="/resources/:id" element={protectedPage(<ResourceDetailPage />)} />
       <Route path="*" element={<Navigate to="/projects" replace />} />
     </Routes>
   );

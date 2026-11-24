@@ -5,6 +5,10 @@ import AuthContext from '../../auth/authContext';
 import DeliverablesPanel from './DeliverablesPanel';
 import { listDeliverables } from '../../services/deliverablesApi';
 
+vi.mock('../../services/resourcesApi', () => ({
+  listResources: vi.fn().mockResolvedValue({ items: [], week_start: '2030-01-07' }),
+}));
+
 vi.mock('../../services/deliverablesApi', () => ({
   listDeliverables: vi.fn(),
   deleteDeliverable: vi.fn(),
