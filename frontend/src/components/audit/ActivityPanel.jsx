@@ -13,13 +13,13 @@ import Typography from '@mui/material/Typography';
 import useYou from '../../auth/useYou';
 import { listAudit } from '../../services/auditApi';
 import projectShape from '../projectPropTypes';
+import { formatDateTime } from '../../utils/format';
 
 const ACTION_COLORS = { create: 'success', update: 'primary', delete: 'error' };
 const ENTITY_LABELS = {
   project: 'Project', deliverable: 'Deliverable', dependency: 'Dependency',
   allocation: 'Allocation', budget_entry: 'Spend', resource: 'Person',
 };
-const TIME_FORMAT = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
 function show(value) {
   if (value === null || value === undefined || value === '') return '—';
@@ -62,7 +62,7 @@ export default function ActivityPanel({ project }) {
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>{entry.summary}</Typography>
                 </Stack>
                 <Typography variant="caption" color="text.secondary">
-                  {you.user(entry.actor_user_id, entry.actor_name) ?? 'Unknown user'} · {TIME_FORMAT.format(new Date(entry.occurred_at))}
+                  {you.user(entry.actor_user_id, entry.actor_name) ?? 'Unknown user'} · {formatDateTime(entry.occurred_at)}
                 </Typography>
                 {fields.length > 0 && (
                   <Box component="ul" sx={{ m: 0, mt: 0.5, pl: 3 }}>

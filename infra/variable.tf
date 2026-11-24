@@ -85,9 +85,9 @@ variable "aws_eks_type" {
 }
 
 variable "app_currency" {
-  description = "ISO 4217 currency code used to display budget amounts (display only, no conversion). Default: USD."
+  description = "ISO 4217 currency code used to display budget amounts (display only, no conversion). Default: INR."
   type        = string
-  default     = "USD"
+  default     = "INR"
 
   validation {
     condition     = can(regex("^[A-Z]{3}$", var.app_currency))

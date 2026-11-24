@@ -40,7 +40,7 @@ describe('ResourcesPage', () => {
     expect(within(table).getByText('50 h / 40 h')).toBeInTheDocument();
     expect(within(table).getByText('Over-allocated')).toBeInTheDocument();
     expect(within(table).getByText('Inactive')).toBeInTheDocument();
-    expect(screen.getByText(/week of Jan 7, 2030/)).toBeInTheDocument();
+    expect(screen.getByText(/week of 7 Jan 2030/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New person' })).not.toBeInTheDocument();
   });
 

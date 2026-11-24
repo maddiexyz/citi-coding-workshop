@@ -27,7 +27,7 @@ describe('People and allocations', () => {
     cy.contains('Must be more than 0 and at most 80');
     cy.findField(/Hours per week/).clear().type('20');
     cy.get('[role="dialog"]').contains('button', 'Save').click();
-    cy.contains('Saved, but E2E Busy Person is over-allocated in the week of Jan 7, 2030: 50 h of 40 h (+10 h).');
+    cy.contains('Saved, but E2E Busy Person is over-allocated in the week of 7 Jan 2030: 50 h of 40 h (+10 h).');
     cy.get('table[aria-label="Allocations"]').should('contain', 'E2E Busy Person');
 
     cy.contains('a', 'E2E Busy Person').click();

@@ -31,7 +31,7 @@ MAX_AMOUNT = Decimal("9999999999.99")
 
 def currency() -> str:
     """The app-wide display currency (ISO 4217 code)."""
-    return os.getenv("APP_CURRENCY", "USD")
+    return os.getenv("APP_CURRENCY", "INR")
 
 
 def load_project(project_id: int, *, missing_status: int = 404) -> dict:

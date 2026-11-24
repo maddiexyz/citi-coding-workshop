@@ -92,7 +92,7 @@ describe('AllocationsPanel flows', () => {
 });
 
 describe('BudgetPanel flows', () => {
-  const summary = { project_id: 1, currency: 'USD', budget_set: true, budget_planned: '1000.00', actual: '10.00',
+  const summary = { project_id: 1, currency: 'INR', budget_set: true, budget_planned: '1000.00', actual: '10.00',
     remaining: '990.00', burn_pct: '1.0', over_budget: false, entry_count: 1,
     by_category: [{ category: 'labor', amount: '10.00' }] };
   const entry = { id: 4, project_id: 1, category: 'labor', amount: '10.00', spent_on: '2030-01-15', description: 'Pizza' };
@@ -106,7 +106,7 @@ describe('BudgetPanel flows', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Record spend' }));
     await userEvent.type(within(dialog()).getByLabelText(/Amount/), '5');
     await userEvent.click(within(dialog()).getByRole('button', { name: 'Save' }));
-    expect(await screen.findByText('Recorded $5.00 of labor spend')).toBeInTheDocument();
+    expect(await screen.findByText('Recorded ₹5.00 of labor spend')).toBeInTheDocument();
     expect(onChanged).toHaveBeenCalled();
     expect(getBudgetSummary).toHaveBeenCalledTimes(2);
   });
@@ -120,7 +120,7 @@ describe('BudgetPanel flows', () => {
     await userEvent.click(screen.getByRole('combobox', { name: 'Category' }));
     await userEvent.click(screen.getByRole('option', { name: 'Travel' }));
     expect(listBudgetEntries).toHaveBeenLastCalledWith(1, { category: 'travel', from: '', to: '', q: '' });
-    await userEvent.click(await screen.findByRole('button', { name: 'Delete spend of $10.00' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete spend of ₹10.00' }));
     expect(dialog()).toHaveTextContent('kept in the project\'s history');
     await userEvent.click(within(dialog()).getByRole('button', { name: 'Delete' }));
     expect(deleteBudgetEntry).toHaveBeenCalledWith(4);

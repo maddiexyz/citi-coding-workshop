@@ -9,20 +9,20 @@ describe('Budget and activity', () => {
       cy.signIn('project_manager');
       cy.visit(`/projects/${project.id}?tab=budget`);
     });
-    cy.contains('$1,000.00');
+    cy.contains('₹1,000.00');
     cy.contains('button', 'Record spend').click();
     cy.findField(/Amount/).type('1.234');
     cy.get('[role="dialog"]').contains('button', 'Save').click();
     cy.contains('Enter an amount of 0 or more, with at most 2 decimals');
     cy.findField(/Amount/).clear().type('1200.50');
     cy.get('[role="dialog"]').contains('button', 'Save').click();
-    cy.contains('Recorded $1,200.50 of labor spend');
+    cy.contains('Recorded ₹1,200.50 of labor spend');
     cy.contains('Over budget');
     cy.contains('120.1%');
     cy.get('button[aria-label^="Delete spend"]').should('not.exist');   // only admins delete spend
 
     cy.contains('[role="tab"]', 'Activity').click();
-    cy.get('ul[aria-label="Activity"]').should('contain', 'Recorded 1200.50 USD of labor spend')
+    cy.get('ul[aria-label="Activity"]').should('contain', 'Recorded 1200.50 INR of labor spend')
       .and('contain', 'Created project E2E-BUD');
 
     cy.get('@project').then((project) => {

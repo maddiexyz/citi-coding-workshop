@@ -14,12 +14,12 @@ vi.mock('../../services/budgetApi', () => ({
 
 const CATEGORIES = ['labor', 'software', 'hardware', 'travel', 'other'].map((category) => ({ category, amount: '0.00' }));
 const OVER = {
-  project_id: 1, currency: 'USD', budget_set: true, budget_planned: '1000.00', actual: '1100.00',
-  remaining: '-100.00', burn_pct: '110.0', over_budget: true, entry_count: 2,
-  by_category: [{ category: 'labor', amount: '600.00' }, { category: 'software', amount: '500.00' }, ...CATEGORIES.slice(2)],
+  project_id: 1, currency: 'INR', budget_set: true, budget_planned: '100000.00', actual: '110000.00',
+  remaining: '-10000.00', burn_pct: '110.0', over_budget: true, entry_count: 2,
+  by_category: [{ category: 'labor', amount: '60000.00' }, { category: 'software', amount: '50000.00' }, ...CATEGORIES.slice(2)],
 };
 const PROJECT = { id: 1, code: 'B-1', name: 'B', status: 'active', owner_id: 7 };
-const ENTRY = { id: 4, project_id: 1, category: 'labor', amount: '600.00', spent_on: '2030-01-15', description: 'Contractor' };
+const ENTRY = { id: 4, project_id: 1, category: 'labor', amount: '120000.00', spent_on: '2030-01-15', description: 'Contractor' };
 
 function renderAs(user) {
   getBudgetSummary.mockResolvedValue(OVER);
@@ -38,7 +38,8 @@ describe('BudgetSummary', () => {
     render(<BudgetSummary summary={OVER} />);
     expect(screen.getByText('110.0%')).toBeInTheDocument();
     expect(screen.getByText('Over budget')).toBeInTheDocument();
-    expect(screen.getByText('-$100.00')).toBeInTheDocument();
+    expect(screen.getByText('-₹10,000.00')).toBeInTheDocument();
+    expect(screen.getByText('₹1,00,000.00')).toBeInTheDocument();   // Indian digit grouping
   });
 
   it('says "No budget set" instead of dividing by zero', () => {
@@ -60,13 +61,13 @@ describe('BudgetPanel', () => {
     renderAs({ id: 7, role: 'project_manager' });
     expect(await screen.findByRole('table', { name: 'Spend entries' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Record spend' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Edit spend of $600.00' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Delete spend of $600.00' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit spend of ₹1,20,000.00' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete spend of ₹1,20,000.00' })).not.toBeInTheDocument();
   });
 
   it('lets an admin delete spend', async () => {
     renderAs({ id: 1, role: 'admin' });
-    expect(await screen.findByRole('button', { name: 'Delete spend of $600.00' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Delete spend of ₹1,20,000.00' })).toBeInTheDocument();
   });
 });
 

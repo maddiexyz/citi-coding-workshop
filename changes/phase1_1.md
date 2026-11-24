@@ -57,6 +57,14 @@ Branch `feature/v1.1` (from `feature/increment-e`).
 - *Account* page (`/account`) from a new user menu in the app bar (the name
   button now opens *Account* and *Sign out*).
 
+## 7. INR and Indian formatting
+- Terraform `app_currency` now defaults to `INR`; the same variable feeds
+  the LocalStack Lambdas (`start-dev.sh`) and AWS, and the budget service's
+  fallback is `INR` too.
+- `formatMoney` uses `en-IN` (`₹1,20,000.00`); dates (`7 Jan 2030`), hours
+  and timestamps use `en-IN` too (`LOCALE` in `utils/format.js`). "Today"
+  still comes only from the database.
+
 ## Decisions made on your behalf
 | Item | Decision | Why |
 | --- | --- | --- |
@@ -69,3 +77,4 @@ Branch `feature/v1.1` (from `feature/increment-e`).
 | 5 | The assignee uses the same `PUT /api/deliverables/{id}` with unchanged values (no separate status endpoint) | One contract; the server compares field by field and names any field that may not change |
 | 6 | Wrong current-password attempts share the sign-in failure counter for that email | One limit for guessing a password, wherever it is guessed |
 | 6 | Sign out moved into the user menu with Account | A single "user menu" as the brief describes |
+| 7 | Two decimals are kept in amounts (`₹1,20,000.00`) | Amounts are stored to the paisa; hiding them would round displayed spend |

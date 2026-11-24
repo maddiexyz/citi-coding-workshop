@@ -45,6 +45,6 @@ describe('overAllocationMessage', () => {
       { week_start: '2030-01-07', total_hours: '50.00', weekly_hours: '40.00', over_by: '10.00' },
       { week_start: '2030-01-14', total_hours: '45.00', weekly_hours: '40.00', over_by: '5.00' },
     ]);
-    expect(message).toBe('Saved, but Pat is over-allocated in the week of Jan 7, 2030: 50 h of 40 h (+10 h) and 1 more week(s).');
+    expect(message).toBe('Saved, but Pat is over-allocated in the week of 7 Jan 2030: 50 h of 40 h (+10 h) and 1 more week(s).');
   });
 });

@@ -35,7 +35,7 @@ def test_burn_remaining_and_over_budget(budget_service, projects_service, users,
 
     body = summary(budget_service, users["viewer"]["token"], project["id"])
     assert (body["budget_planned"], body["actual"], body["remaining"]) == ("1000.00", "1100.00", "-100.00")
-    assert (body["burn_pct"], body["over_budget"], body["budget_set"], body["currency"]) == ("110.0", True, True, "USD")
+    assert (body["burn_pct"], body["over_budget"], body["budget_set"], body["currency"]) == ("110.0", True, True, "INR")
     assert {c["category"]: c["amount"] for c in body["by_category"]} == {
         "labor": "600.00", "software": "500.00", "hardware": "0.00", "travel": "0.00", "other": "0.00"}
 
