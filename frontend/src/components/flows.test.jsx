@@ -39,6 +39,7 @@ vi.mock('../services/usersApi', () => ({
   listUsers: vi.fn(), createUser: vi.fn(), updateUser: vi.fn(), resetPassword: vi.fn(), deleteUser: vi.fn(),
 }));
 vi.mock('../services/projectsApi', () => ({ listProjects: vi.fn(), deleteProject: vi.fn() }));
+vi.mock('../services/departmentsApi', () => ({ listDepartments: vi.fn().mockResolvedValue([]) }));
 
 const ADMIN = { id: 1, role: 'admin', full_name: 'Ada' };
 const PM = { id: 7, role: 'project_manager', full_name: 'Pat' };
@@ -238,7 +239,7 @@ describe('ProjectsPage flows', () => {
     expect(await screen.findByText('Deleted P-1')).toBeInTheDocument();
     await userEvent.click(await screen.findByRole('combobox', { name: 'Status' }));
     await userEvent.click(screen.getByRole('option', { name: 'Completed' }));
-    expect(listProjects).toHaveBeenLastCalledWith({ status: 'completed', q: '' });
+    expect(listProjects).toHaveBeenLastCalledWith({ status: 'completed', q: '', department_id: '' });
   });
 
   it('reports a failed delete', async () => {

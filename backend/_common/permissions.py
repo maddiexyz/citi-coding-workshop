@@ -104,3 +104,8 @@ def can_delete_budget_entries(user: Any) -> bool:
 def can_read_project_audit(user: Any, project: dict) -> bool:
     """Return True if the user may read a project's change history."""
     return owns_project(user, project)
+
+
+def can_manage_departments(user: Any) -> bool:
+    """Return True if the user may create, rename or delete departments (admin only)."""
+    return user.role == ADMIN

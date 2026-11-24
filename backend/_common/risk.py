@@ -55,25 +55,28 @@ def schedule_slip(project: dict, today: date) -> Optional[dict]:
                         "gap_points": round(gap, 1), "threshold": slip_threshold()}}
 
 
-def evaluate(project_ids: Optional[list[int]] = None) -> list[dict]:
+def evaluate(project_ids: Optional[list[int]] = None, department_id: Optional[int] = None) -> list[dict]:
     """
     Evaluate projects and return each with is_at_risk, severity and risk_reasons.
 
     Args:
         project_ids: Limit to these projects (default: every evaluated project).
+        department_id: Limit to projects of this department.
     """
     today = db.today()
     week = today - timedelta(days=today.weekday())
     projects = db.fetch_all(
         """
-        SELECT id, code, name, status, start_date, end_date, owner_id, owner_name, team_lead_name,
+        SELECT id, code, name, status, start_date, end_date, owner_id, owner_name, team_lead_id, team_lead_name,
+               department_id, department_name,
                deliverables_total, deliverables_done, budget_planned, actual_spend, burn_pct, over_budget
         FROM project_details
         WHERE (status = 'active' OR (status = 'planned' AND start_date <= current_date))
           AND (%(ids)s::bigint[] IS NULL OR id = ANY(%(ids)s))
+          AND (%(department_id)s::bigint IS NULL OR department_id = %(department_id)s)
         ORDER BY code
         """,
-        {"ids": project_ids},
+        {"ids": project_ids, "department_id": department_id},
     )
     ids = [p["id"] for p in projects]
     overdue = _group(db.fetch_all(

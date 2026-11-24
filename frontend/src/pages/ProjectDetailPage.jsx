@@ -51,9 +51,10 @@ function Overview({ project }) {
   return (
     <Stack spacing={3}>
       {project.description && <Typography sx={{ whiteSpace: 'pre-wrap' }}>{project.description}</Typography>}
-      <Box component="dl" sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2, m: 0 }}>
+      <Box component="dl" sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(5, 1fr)' }, gap: 2, m: 0 }}>
         <Detail label="Owner">{project.owner_name}</Detail>
         <Detail label="Team lead">{project.team_lead_name ?? 'Not assigned'}</Detail>
+        <Detail label="Department">{project.department_name ?? '—'}</Detail>
         <Detail label="Start">{formatDate(project.start_date)}</Detail>
         <Detail label="End">{formatDate(project.end_date)}</Detail>
       </Box>

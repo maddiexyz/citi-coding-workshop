@@ -117,3 +117,11 @@ export function canReadProjectAudit(user, project) {
 export function canManageUsers(user) {
   return user?.role === 'admin';
 }
+
+/**
+ * @param {{role: string}|null} user
+ * @returns {boolean} True if the user may add, rename or delete departments (admin only).
+ */
+export function canManageDepartments(user) {
+  return user?.role === 'admin';
+}

@@ -14,10 +14,11 @@ import Stack from '@mui/material/Stack';
 import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
 import { createResource, updateResource } from '../../services/resourcesApi';
+import { listDepartments } from '../../services/departmentsApi';
 import { listUsers } from '../../services/usersApi';
 import validateResource from '../../utils/resourceValidation';
 
-const EMPTY = { full_name: '', email: '', department: '', title: '', weekly_hours: '40', user_id: '', is_active: true };
+const EMPTY = { full_name: '', email: '', department_id: '', title: '', weekly_hours: '40', user_id: '', is_active: true };
 
 function toFormValues(resource) {
   if (!resource) return EMPTY;
@@ -32,10 +33,12 @@ export default function ResourceFormDialog({ resource = null, onClose, onSaved }
   const [formError, setFormError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [users, setUsers] = useState([]);
+  const [departments, setDepartments] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
     listUsers({ active: true }).then((items) => !cancelled && setUsers(items)).catch(() => {});
+    listDepartments().then((items) => !cancelled && setDepartments(items)).catch(() => {});
     return () => { cancelled = true; };
   }, []);
 
@@ -55,7 +58,7 @@ export default function ResourceFormDialog({ resource = null, onClose, onSaved }
     const payload = {
       full_name: values.full_name.trim(),
       email: values.email.trim() || null,
-      department: values.department.trim() || null,
+      department_id: values.department_id === '' ? null : Number(values.department_id),
       title: values.title.trim() || null,
       weekly_hours: values.weekly_hours,
       user_id: values.user_id === '' ? null : Number(values.user_id),
@@ -86,7 +89,10 @@ export default function ResourceFormDialog({ resource = null, onClose, onSaved }
             <TextField label="Name" required autoFocus {...fieldProps('full_name')} />
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <TextField label="Title" {...fieldProps('title')} />
-              <TextField label="Department" {...fieldProps('department')} />
+              <TextField label="Department" select {...fieldProps('department_id')}>
+                <MenuItem value="">None</MenuItem>
+                {departments.map((d) => <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>)}
+              </TextField>
             </Stack>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <TextField label="Email" type="email" {...fieldProps('email')} />

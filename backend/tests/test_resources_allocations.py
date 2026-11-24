@@ -43,7 +43,7 @@ def allocate(service, token, project_id, resource_id, hours, start=MONDAY, weeks
 # --- Resources -------------------------------------------------------------------
 
 def test_resource_crud_and_defaults(resources_service, users):
-    created = make_resource(resources_service, users, "  Pat Lee ", email="Pat@Acme.test", department="Data",
+    created = make_resource(resources_service, users, "  Pat Lee ", email="Pat@Acme.test",
                             user_id=users["team_lead"]["id"])
     assert (created["full_name"], created["email"], created["weekly_hours"]) == ("Pat Lee", "pat@acme.test", "40.00")
     assert (created["user_name"], created["is_active"], created["over_allocated"]) == ("Team Lead", True, False)

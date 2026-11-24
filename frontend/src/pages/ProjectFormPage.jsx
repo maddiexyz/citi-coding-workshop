@@ -14,11 +14,12 @@ import { canChangeProject, canCreateProject } from '../auth/permissions';
 import { PROJECT_STATUSES } from '../constants/projectStatus';
 import { createProject, getProject, updateProject } from '../services/projectsApi';
 import { listUsers } from '../services/usersApi';
+import DepartmentSelect from '../components/DepartmentSelect';
 import validateProject from '../utils/projectValidation';
 
 const EMPTY_FORM = {
   code: '', name: '', description: '', status: 'planned', start_date: '', end_date: '', team_lead_id: '',
-  budget_planned: '',
+  department_id: '', budget_planned: '',
 };
 
 /** Convert an API project into form values (nulls become empty strings). */
@@ -97,6 +98,7 @@ export default function ProjectFormPage() {
       start_date: values.start_date || null,
       end_date: values.end_date || null,
       team_lead_id: values.team_lead_id === '' ? null : Number(values.team_lead_id),
+      department_id: values.department_id === '' ? null : Number(values.department_id),
       // Kept as a string so the amount is never rounded as a float
       budget_planned: String(values.budget_planned).trim() || null,
     };
@@ -151,6 +153,15 @@ export default function ProjectFormPage() {
             )}
             {teamLeads.map((lead) => <MenuItem key={lead.id} value={lead.id}>{lead.full_name}</MenuItem>)}
           </TextField>
+          <DepartmentSelect
+            variant="field"
+            value={values.department_id}
+            onChange={(value) => setField('department_id')({ target: { value } })}
+            error={Boolean(errors.department_id)}
+            helperText={errors.department_id}
+            disabled={saving}
+            fullWidth
+          />
           <TextField
             label="Planned budget"
             inputMode="decimal"

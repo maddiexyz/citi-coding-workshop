@@ -13,6 +13,8 @@ const projectShape = PropTypes.shape({
   owner_name: PropTypes.string,
   team_lead_id: PropTypes.number,
   team_lead_name: PropTypes.string,
+  department_id: PropTypes.number,
+  department_name: PropTypes.string,
   deliverables_total: PropTypes.number,
   deliverables_done: PropTypes.number,
   budget_planned: PropTypes.string,

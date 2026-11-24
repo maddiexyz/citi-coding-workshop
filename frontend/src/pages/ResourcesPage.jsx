@@ -32,13 +32,16 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import SearchIcon from '@mui/icons-material/Search';
 import useAuth from '../auth/useAuth';
-import { canManageResources } from '../auth/permissions';
+import { canManageDepartments, canManageResources } from '../auth/permissions';
 import ConfirmDialog from '../components/ConfirmDialog';
 import OverAllocatedChip from '../components/resources/OverAllocatedChip';
+import DepartmentsDialog from '../components/resources/DepartmentsDialog';
 import ResourceFormDialog from '../components/resources/ResourceFormDialog';
 import resourceShape from '../components/resources/resourcePropTypes';
+import { listDepartments } from '../services/departmentsApi';
 import { deleteResource, listResources } from '../services/resourcesApi';
 import { formatDate, formatHours } from '../utils/format';
+import groupByDepartment from '../utils/groupByDepartment';
 import useDebouncedValue from '../utils/useDebouncedValue';
 
 function Load({ resource }) {
@@ -79,6 +82,10 @@ export default function ResourcesPage() {
   const q = useDebouncedValue(search.trim());
   const [active, setActive] = useState('true');
   const [overOnly, setOverOnly] = useState(false);
+  const [departmentId, setDepartmentId] = useState('');
+  const [grouped, setGrouped] = useState(false);
+  const [departments, setDepartments] = useState([]);
+  const [managingDepartments, setManagingDepartments] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [result, setResult] = useState({ key: null, items: [], week: null, error: null });
   const [dialog, setDialog] = useState(null); // {resource|null}
@@ -87,16 +94,22 @@ export default function ResourcesPage() {
   const [actionError, setActionError] = useState(null);
   const [message, setMessage] = useState(null);
 
-  const requestKey = JSON.stringify([q, active, overOnly, reloadKey]);
+  const requestKey = JSON.stringify([q, active, overOnly, departmentId, reloadKey]);
   const loading = result.key !== requestKey;
 
   useEffect(() => {
     let cancelled = false;
-    listResources({ q, active, over_allocated: overOnly || undefined })
+    listResources({ q, active, over_allocated: overOnly || undefined, department_id: departmentId })
       .then((data) => !cancelled && setResult({ key: requestKey, items: data.items, week: data.week_start, error: null }))
       .catch((err) => !cancelled && setResult({ key: requestKey, items: [], week: null, error: err.message }));
     return () => { cancelled = true; };
-  }, [requestKey, q, active, overOnly]);
+  }, [requestKey, q, active, overOnly, departmentId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    listDepartments().then((items) => !cancelled && setDepartments(items)).catch(() => {});
+    return () => { cancelled = true; };
+  }, [reloadKey]);
 
   const saved = (resource, verb) => {
     setDialog(null);
@@ -121,6 +134,61 @@ export default function ResourcesPage() {
   const nameLink = (r) => <Link component={RouterLink} to={`/resources/${r.id}`}>{r.full_name}</Link>;
   const inactive = (r) => !r.is_active && <Chip size="small" variant="outlined" label="Inactive" />;
 
+  const renderPeople = (items, label) => (isDesktop ? (
+    <TableContainer component={Paper} variant="outlined">
+      <Table aria-label={label}>
+        <TableHead>
+          <TableRow>
+            <TableCell>Name</TableCell>
+            <TableCell>Title</TableCell>
+            <TableCell>Department</TableCell>
+            <TableCell>This week</TableCell>
+            <TableCell />
+            {canManage && <TableCell align="right">Actions</TableCell>}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {items.map((r) => (
+            <TableRow key={r.id} hover>
+              <TableCell sx={{ fontWeight: 600 }}>{nameLink(r)}</TableCell>
+              <TableCell>{r.title ?? '—'}</TableCell>
+              <TableCell>{r.department_name ?? '—'}</TableCell>
+              <TableCell><Load resource={r} /></TableCell>
+              <TableCell>{inactive(r)}</TableCell>
+              {canManage && (
+                <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                  <Actions resource={r} onEdit={(res) => setDialog({ resource: res })} onDelete={setToDelete} />
+                </TableCell>
+              )}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  ) : (
+    <Stack spacing={1.5} component="ul" sx={{ listStyle: 'none', p: 0, m: 0 }} aria-label={label}>
+      {items.map((r) => (
+        <Card key={r.id} variant="outlined" component="li">
+          <CardContent>
+            <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
+              <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 600 }}>{nameLink(r)}</Typography>
+              {inactive(r)}
+            </Stack>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              {[r.title, r.department_name].filter(Boolean).join(' · ') || '—'}
+            </Typography>
+            <Load resource={r} />
+            {canManage && (
+              <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
+                <Actions resource={r} onEdit={(res) => setDialog({ resource: res })} onDelete={setToDelete} />
+              </Stack>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+    </Stack>
+  ));
+
   let content;
   if (loading) {
     content = <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress aria-label="Loading people" /></Box>;
@@ -129,66 +197,29 @@ export default function ResourcesPage() {
   } else if (result.items.length === 0) {
     content = (
       <Typography color="text.secondary" sx={{ py: 6, textAlign: 'center' }}>
-        {q || overOnly || active !== 'true' ? 'No people match these filters.' : 'No people yet.'}
+        {q || overOnly || departmentId || active !== 'true' ? 'No people match these filters.' : 'No people yet.'}
       </Typography>
     );
-  } else if (isDesktop) {
+  } else if (grouped) {
     content = (
-      <TableContainer component={Paper} variant="outlined">
-        <Table aria-label="People">
-          <TableHead>
-            <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Title</TableCell>
-              <TableCell>Department</TableCell>
-              <TableCell>This week</TableCell>
-              <TableCell />
-              {canManage && <TableCell align="right">Actions</TableCell>}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {result.items.map((r) => (
-              <TableRow key={r.id} hover>
-                <TableCell sx={{ fontWeight: 600 }}>{nameLink(r)}</TableCell>
-                <TableCell>{r.title ?? '—'}</TableCell>
-                <TableCell>{r.department ?? '—'}</TableCell>
-                <TableCell><Load resource={r} /></TableCell>
-                <TableCell>{inactive(r)}</TableCell>
-                {canManage && (
-                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                    <Actions resource={r} onEdit={(res) => setDialog({ resource: res })} onDelete={setToDelete} />
-                  </TableCell>
-                )}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    );
-  } else {
-    content = (
-      <Stack spacing={1.5} component="ul" sx={{ listStyle: 'none', p: 0, m: 0 }} aria-label="People">
-        {result.items.map((r) => (
-          <Card key={r.id} variant="outlined" component="li">
-            <CardContent>
-              <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="subtitle1" component="h2" sx={{ fontWeight: 600 }}>{nameLink(r)}</Typography>
-                {inactive(r)}
-              </Stack>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                {[r.title, r.department].filter(Boolean).join(' · ') || '—'}
-              </Typography>
-              <Load resource={r} />
-              {canManage && (
-                <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
-                  <Actions resource={r} onEdit={(res) => setDialog({ resource: res })} onDelete={setToDelete} />
-                </Stack>
-              )}
-            </CardContent>
-          </Card>
+      <Stack spacing={3}>
+        {groupByDepartment(result.items).map((group) => (
+          <Box component="section" key={group.name} aria-label={group.name}>
+            <Typography variant="h6" component="h2">{group.name}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              {group.people.length} {group.people.length === 1 ? 'person' : 'people'}
+              {' · '}
+              {formatHours(group.allocated)} allocated of {formatHours(group.capacity)} capacity this week
+              {' · '}
+              {group.over} over-allocated
+            </Typography>
+            {renderPeople(group.people, `People in ${group.name}`)}
+          </Box>
         ))}
       </Stack>
     );
+  } else {
+    content = renderPeople(result.items, 'People');
   }
 
   return (
@@ -198,9 +229,14 @@ export default function ResourcesPage() {
           <Typography variant="h4" component="h1">People</Typography>
           {result.week && <Typography variant="body2" color="text.secondary">Load shown for the week of {formatDate(result.week)}</Typography>}
         </Box>
-        {canManage && (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialog({ resource: null })}>New person</Button>
-        )}
+        <Stack direction="row" spacing={1}>
+          {canManageDepartments(user) && (
+            <Button variant="outlined" onClick={() => setManagingDepartments(true)}>Departments</Button>
+          )}
+          {canManage && (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialog({ resource: null })}>New person</Button>
+          )}
+        </Stack>
       </Stack>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ alignItems: { md: 'center' } }}>
         <TextField
@@ -217,12 +253,21 @@ export default function ResourcesPage() {
           <MenuItem value="false">Inactive</MenuItem>
           <MenuItem value="">Everyone</MenuItem>
         </TextField>
+        <TextField select label="Department" value={departmentId} onChange={(event) => setDepartmentId(event.target.value)} size="small" sx={{ minWidth: 170 }}
+          slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }}>
+          <MenuItem value="">All departments</MenuItem>
+          {departments.map((d) => <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>)}
+        </TextField>
         <FormControlLabel control={<Switch checked={overOnly} onChange={(event) => setOverOnly(event.target.checked)} />} label="Over-allocated this week" />
+        <FormControlLabel control={<Switch checked={grouped} onChange={(event) => setGrouped(event.target.checked)} />} label="Group by department" />
       </Stack>
       {result.error && <Alert severity="error">{result.error}</Alert>}
       {actionError && <Alert severity="error" onClose={() => setActionError(null)}>{actionError}</Alert>}
       {content}
 
+      {managingDepartments && (
+        <DepartmentsDialog onClose={() => setManagingDepartments(false)} onChanged={() => setReloadKey((key) => key + 1)} />
+      )}
       {dialog && (
         <ResourceFormDialog resource={dialog.resource} onClose={() => setDialog(null)} onSaved={saved} />
       )}

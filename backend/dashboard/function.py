@@ -4,7 +4,7 @@ Dashboard service: portfolio health at a glance. Everyone signed in may read it.
 Routes (served at /api/dashboard; every route needs a Bearer token):
     GET /summary                    -> counts: projects by status, at risk, over budget,
                                        overdue deliverables, over-allocated people this week
-    GET /at-risk  ?q&flag&severity  -> {"items": [...]} projects at risk and/or over budget,
+    GET /at-risk  ?q&flag&severity&department_id -> {"items": [...]} projects at risk and/or over budget,
                                        each with risk_reasons and over_budget
 
 All figures are computed at query time (see common.risk); nothing is stored.
@@ -14,7 +14,7 @@ from datetime import timedelta
 
 from common import db, risk
 from common.auth import require_auth
-from common.http import ApiError, Request, json_response, make_handler
+from common.http import ApiError, Request, json_response, make_handler, parse_id
 
 FLAGS = ("at_risk", "over_budget")
 SEVERITIES = ("high", "medium")
@@ -73,9 +73,11 @@ def get_at_risk(request: Request) -> dict:
     if errors:
         raise ApiError(400, "validation_error", "Invalid filter", errors)
     text = (request.query.get("q") or "").strip().lower()
+    raw_department = request.query.get("department_id")
+    department_id = parse_id(raw_department, "Department id") if raw_department else None
 
     items = []
-    for project in risk.evaluate():
+    for project in risk.evaluate(department_id=department_id):
         if not (project["is_at_risk"] or project["over_budget"]):
             continue
         if flag == "at_risk" and not project["is_at_risk"]:

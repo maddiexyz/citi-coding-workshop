@@ -2,14 +2,14 @@
 Resources service: the people who do the work, their weekly capacity and load.
 
 Routes (served at /api/resources; every route needs a Bearer token):
-    GET    /           ?q&department&active&over_allocated&week -> {"items": [...], "week_start"}
+    GET    /           ?q&department_id&active&over_allocated&week -> {"items": [...], "week_start"}
     GET    /{id}                                   -> resource + allocations
     GET    /{id}/load  ?from&to                    -> {"weeks": [...]} hours per week
     POST   /           resource fields             -> 201 resource      (admin)
     PUT    /{id}       resource fields             -> resource          (admin)
     DELETE /{id}                                   -> 204 (409 if it has allocations) (admin)
 
-Resource fields: full_name, email, department, title, user_id, weekly_hours, is_active.
+Resource fields: full_name, email, department_id, title, user_id, weekly_hours, is_active.
 Load and over-allocation come from the resource_weekly_load() SQL function
 (weeks start on Monday) and are computed at query time.
 """
@@ -55,13 +55,15 @@ def validate_resource(data: dict) -> dict:
     validator.string("full_name", required=True, max_length=200)
     validator.string("email", max_length=254, transform=str.lower, pattern=EMAIL_PATTERN,
                      pattern_message="Must be an email address")
-    validator.string("department", max_length=100)
+    department_id = validator.integer("department_id")
     validator.string("title", max_length=100)
     user_id = validator.integer("user_id")
     validator.number("weekly_hours", greater_than=Decimal(0), maximum=Decimal(60), default=Decimal(40))
     validator.boolean("is_active", default=True)
     if user_id and not db.fetch_one("SELECT 1 FROM users WHERE id = %s", (user_id,)):
         validator.add_error("user_id", "User not found")
+    if department_id and not db.fetch_one("SELECT 1 FROM departments WHERE id = %s", (department_id,)):
+        validator.add_error("department_id", "Department not found")
     validator.raise_if_errors()
     return validator.clean
 
@@ -77,10 +79,11 @@ def find_resource(resource_id: int) -> dict:
     this_week = week_start(db.today())
     row = db.fetch_one(
         """
-        SELECT r.*, u.full_name AS user_name,
+        SELECT r.*, u.full_name AS user_name, dep.name AS department_name,
                coalesce(l.total_hours, 0) AS week_hours, coalesce(l.over_by, 0) > 0 AS over_allocated
         FROM resources r
         LEFT JOIN users u ON u.id = r.user_id
+        LEFT JOIN departments dep ON dep.id = r.department_id
         LEFT JOIN resource_weekly_load(%(week)s, %(week)s) l ON l.resource_id = r.id
         WHERE r.id = %(id)s
         """,
@@ -106,22 +109,23 @@ def list_resources(request: Request) -> dict:
     text = (query.get("q") or "").strip()
     items = db.fetch_all(
         """
-        SELECT r.*, u.full_name AS user_name,
+        SELECT r.*, u.full_name AS user_name, dep.name AS department_name,
                coalesce(l.total_hours, 0) AS week_hours, coalesce(l.over_by, 0) > 0 AS over_allocated
         FROM resources r
         LEFT JOIN users u ON u.id = r.user_id
+        LEFT JOIN departments dep ON dep.id = r.department_id
         LEFT JOIN resource_weekly_load(%(week)s, %(week)s) l ON l.resource_id = r.id
         WHERE (%(active)s::boolean IS NULL OR r.is_active = %(active)s)
-          AND (%(department)s::text IS NULL OR r.department ILIKE %(department)s)
+          AND (%(department_id)s::bigint IS NULL OR r.department_id = %(department_id)s)
           AND (%(search)s::text IS NULL OR r.full_name ILIKE %(search)s OR r.email ILIKE %(search)s
-               OR r.title ILIKE %(search)s OR r.department ILIKE %(search)s)
+               OR r.title ILIKE %(search)s OR dep.name ILIKE %(search)s)
           AND (%(over)s::boolean IS NULL OR (coalesce(l.over_by, 0) > 0) = %(over)s)
         ORDER BY r.full_name, r.id
         """,
         {
             "week": week,
             "active": parse_bool("active", query.get("active")),
-            "department": (query.get("department") or "").strip() or None,
+            "department_id": parse_id(query["department_id"], "Department id") if query.get("department_id") else None,
             "search": db.like_pattern(text) if text else None,
             "over": parse_bool("over_allocated", query.get("over_allocated")),
         },
@@ -192,8 +196,8 @@ def create_resource(request: Request) -> dict:
         with db.transaction():
             row = db.fetch_one(
                 """
-                INSERT INTO resources (full_name, email, department, title, user_id, weekly_hours, is_active)
-                VALUES (%(full_name)s, %(email)s, %(department)s, %(title)s, %(user_id)s, %(weekly_hours)s,
+                INSERT INTO resources (full_name, email, department_id, title, user_id, weekly_hours, is_active)
+                VALUES (%(full_name)s, %(email)s, %(department_id)s, %(title)s, %(user_id)s, %(weekly_hours)s,
                         %(is_active)s)
                 RETURNING *
                 """,
@@ -218,7 +222,7 @@ def update_resource(request: Request, resource_id: str) -> dict:
             after = db.fetch_one(
                 """
                 UPDATE resources
-                SET full_name = %(full_name)s, email = %(email)s, department = %(department)s, title = %(title)s,
+                SET full_name = %(full_name)s, email = %(email)s, department_id = %(department_id)s, title = %(title)s,
                     user_id = %(user_id)s, weekly_hours = %(weekly_hours)s, is_active = %(is_active)s,
                     updated_at = now()
                 WHERE id = %(id)s

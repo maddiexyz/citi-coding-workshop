@@ -140,7 +140,8 @@ def empty_projects(request):
     """Start every database test with no projects or resources (and so nothing that hangs off them)."""
     if "users" in request.fixturenames:
         request.getfixturevalue("users")  # make sure the database exists first
-        db.execute("TRUNCATE projects, resources, audit_log, login_attempts, refresh_tokens RESTART IDENTITY CASCADE")
+        db.execute("TRUNCATE projects, resources, departments, audit_log, login_attempts, refresh_tokens "
+                   "RESTART IDENTITY CASCADE")
 
 
 @pytest.fixture(scope="session")
@@ -200,3 +201,9 @@ def dashboard_service():
 def db_today():
     """Today by the database clock, which decides overdue/late (see _common.db.today)."""
     return db.today()
+
+
+@pytest.fixture(scope="session")
+def departments_service():
+    """The departments service module."""
+    return load_service("departments")

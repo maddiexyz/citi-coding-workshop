@@ -5,6 +5,7 @@ import { Context as ResponsiveContext } from 'react-responsive';
 import DashboardPage from './DashboardPage';
 import { getDashboardSummary, listAtRiskProjects } from '../services/dashboardApi';
 
+vi.mock('../services/departmentsApi', () => ({ listDepartments: vi.fn().mockResolvedValue([]) }));
 vi.mock('../services/dashboardApi', () => ({ getDashboardSummary: vi.fn(), listAtRiskProjects: vi.fn() }));
 
 const SUMMARY = {

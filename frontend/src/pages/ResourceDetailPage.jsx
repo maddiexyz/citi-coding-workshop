@@ -49,7 +49,7 @@ export default function ResourceDetailPage() {
           {resource.over_allocated && <OverAllocatedChip />}
         </Stack>
         <Typography color="text.secondary">
-          {[resource.title, resource.department, resource.email].filter(Boolean).join(' · ')}
+          {[resource.title, resource.department_name, resource.email].filter(Boolean).join(' · ')}
           {' · '}
           Capacity {formatHours(resource.weekly_hours)} / week
           {resource.user_name && ` · Signs in as ${resource.user_name}`}

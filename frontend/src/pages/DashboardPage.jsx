@@ -20,6 +20,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import SearchIcon from '@mui/icons-material/Search';
 import BurnChip from '../components/budget/BurnChip';
+import DepartmentSelect from '../components/DepartmentSelect';
 import ProjectStatusChip from '../components/ProjectStatusChip';
 import { getDashboardSummary, listAtRiskProjects } from '../services/dashboardApi';
 import { formatDate, formatHours } from '../utils/format';
@@ -102,8 +103,9 @@ export default function DashboardPage() {
   const [search, setSearch] = useState('');
   const q = useDebouncedValue(search.trim());
   const [flag, setFlag] = useState('');
+  const [departmentId, setDepartmentId] = useState('');
   const [list, setList] = useState({ key: null, items: [], error: null });
-  const listKey = `${q}|${flag}`;
+  const listKey = `${q}|${flag}|${departmentId}`;
 
   useEffect(() => {
     let cancelled = false;
@@ -115,11 +117,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let cancelled = false;
-    listAtRiskProjects({ q, flag })
+    listAtRiskProjects({ q, flag, department_id: departmentId })
       .then((items) => !cancelled && setList({ key: listKey, items, error: null }))
       .catch((err) => !cancelled && setList({ key: listKey, items: [], error: err.message }));
     return () => { cancelled = true; };
-  }, [q, flag, listKey]);
+  }, [q, flag, departmentId, listKey]);
 
   const s = summary.data;
   let projects;
@@ -130,7 +132,7 @@ export default function DashboardPage() {
   } else if (list.items.length === 0) {
     projects = (
       <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-        {q || flag ? 'No flagged projects match these filters.' : 'No projects are at risk or over budget. 🎉'}
+        {q || flag || departmentId ? 'No flagged projects match these filters.' : 'No projects are at risk or over budget. 🎉'}
       </Typography>
     );
   } else {
@@ -147,7 +149,9 @@ export default function DashboardPage() {
                   </Typography>
                   <Stack direction="row" spacing={1} sx={{ my: 0.5, alignItems: 'center' }}>
                     <ProjectStatusChip status={project.status} />
-                    <Typography variant="body2" color="text.secondary">Ends {formatDate(project.end_date)}</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Ends {formatDate(project.end_date)}{project.department_name ? ` · ${project.department_name}` : ''}
+                    </Typography>
                   </Stack>
                   <Flags project={project} />
                 </Box>
@@ -191,6 +195,7 @@ export default function DashboardPage() {
               <MenuItem value="at_risk">At risk</MenuItem>
               <MenuItem value="over_budget">Over budget</MenuItem>
             </TextField>
+            <DepartmentSelect value={departmentId} onChange={setDepartmentId} />
           </Stack>
           {projects}
         </Stack>

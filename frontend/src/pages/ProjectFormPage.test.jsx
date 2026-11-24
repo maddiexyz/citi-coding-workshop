@@ -9,6 +9,7 @@ import { listUsers } from '../services/usersApi';
 
 vi.mock('../services/projectsApi', () => ({ createProject: vi.fn(), getProject: vi.fn(), updateProject: vi.fn() }));
 vi.mock('../services/usersApi', () => ({ listUsers: vi.fn() }));
+vi.mock('../services/departmentsApi', () => ({ listDepartments: vi.fn().mockResolvedValue([{ id: 4, name: 'Finance' }]) }));
 
 const PM = { id: 7, role: 'project_manager', full_name: 'Pat' };
 const PROJECT = {
@@ -40,11 +41,13 @@ describe('ProjectFormPage – create', () => {
     await userEvent.type(screen.getByLabelText(/Planned budget/), '2500.50');
     await userEvent.click(screen.getByRole('combobox', { name: /Team lead/ }));
     await userEvent.click(await screen.findByRole('option', { name: 'Sam' }));
+    await userEvent.click(screen.getByRole('combobox', { name: 'Department' }));
+    await userEvent.click(await screen.findByRole('option', { name: 'Finance' }));
     await userEvent.click(screen.getByRole('button', { name: 'Save project' }));
 
     expect(createProject).toHaveBeenCalledWith({
       code: 'NEW-1', name: 'New project', description: null, status: 'planned', start_date: null, end_date: null,
-      team_lead_id: 6, budget_planned: '2500.50',
+      team_lead_id: 6, department_id: 4, budget_planned: '2500.50',
     });
     expect(await screen.findByText('projects list')).toBeInTheDocument();
   });

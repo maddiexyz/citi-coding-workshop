@@ -40,6 +40,7 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
+  const [departmentId, setDepartmentId] = useState('');
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -69,7 +70,7 @@ export default function ProjectsPage() {
   // A newer request cancels an older one, so slow responses never win.
   useEffect(() => {
     let cancelled = false;
-    listProjects({ status, q: query })
+    listProjects({ status, q: query, department_id: departmentId })
       .then((items) => {
         if (cancelled) return;
         setProjects(items);
@@ -78,11 +79,16 @@ export default function ProjectsPage() {
       .catch((err) => !cancelled && setError(err.message))
       .finally(() => !cancelled && setLoading(false));
     return () => { cancelled = true; };
-  }, [status, query, reloadKey]);
+  }, [status, query, departmentId, reloadKey]);
 
   const changeStatus = (next) => {
     setLoading(true);
     setStatus(next);
+  };
+
+  const changeDepartment = (next) => {
+    setLoading(true);
+    setDepartmentId(next);
   };
 
   const confirmDelete = async () => {
@@ -114,7 +120,7 @@ export default function ProjectsPage() {
   } else if (projects.length === 0) {
     content = (
       <Typography color="text.secondary" sx={{ py: 6, textAlign: 'center' }}>
-        {query || status ? 'No projects match these filters.' : 'No projects yet.'}
+        {query || status || departmentId ? 'No projects match these filters.' : 'No projects yet.'}
       </Typography>
     );
   } else {
@@ -132,7 +138,14 @@ export default function ProjectsPage() {
         )}
       </Stack>
 
-      <ProjectFilters search={search} status={status} onSearchChange={setSearch} onStatusChange={changeStatus} />
+      <ProjectFilters
+        search={search}
+        status={status}
+        departmentId={departmentId}
+        onSearchChange={setSearch}
+        onStatusChange={changeStatus}
+        onDepartmentChange={changeDepartment}
+      />
       {error && <Alert severity="error" onClose={() => setError(null)}>{error}</Alert>}
       {content}
 

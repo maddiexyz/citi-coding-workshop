@@ -7,6 +7,7 @@ import AuthContext from '../auth/authContext';
 import ProjectsPage from './ProjectsPage';
 import { listProjects } from '../services/projectsApi';
 
+vi.mock('../services/departmentsApi', () => ({ listDepartments: vi.fn().mockResolvedValue([]) }));
 vi.mock('../services/projectsApi', () => ({
   listProjects: vi.fn(),
   deleteProject: vi.fn(),

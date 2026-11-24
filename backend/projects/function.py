@@ -2,14 +2,14 @@
 Projects service: list, read, create, update and delete projects.
 
 Routes (served at /api/projects; every route needs a Bearer token):
-    GET    /             ?status=active&q=text -> {"items": [...]}
+    GET    /             ?status&q&department_id -> {"items": [...]}
     GET    /{id}                               -> project
     POST   /             project fields        -> 201 project
     PUT    /{id}         project fields        -> project
     DELETE /{id}                               -> 204
 
 Project fields: code, name, description, status, start_date, end_date,
-team_lead_id, budget_planned. Budget figures (actual_spend, remaining,
+team_lead_id, department_id, budget_planned. Budget figures (actual_spend, remaining,
 burn_pct, over_budget) are computed by the project_details view.
 
 Who may change what is decided in common.permissions; every change is
@@ -36,7 +36,7 @@ def validate_project(data: dict) -> dict:
 
     Returns:
         Cleaned values: code (uppercased), name, description, status, start_date,
-        end_date, team_lead_id, budget_planned.
+        end_date, team_lead_id, department_id, budget_planned.
 
     Raises:
         ApiError: 400 with a message per invalid field.
@@ -52,6 +52,9 @@ def validate_project(data: dict) -> dict:
     if start_date and end_date and end_date < start_date:
         validator.add_error("end_date", "End date must be on or after the start date")
     validator.number("budget_planned", minimum=Decimal(0), maximum=Decimal("9999999999.99"))
+    department_id = validator.integer("department_id")
+    if department_id and not db.fetch_one("SELECT 1 FROM departments WHERE id = %s", (department_id,)):
+        validator.add_error("department_id", "Department not found")
     team_lead_id = validator.integer("team_lead_id")
     if team_lead_id and not db.fetch_one(
             "SELECT 1 FROM users WHERE id = %s AND role = 'team_lead' AND is_active", (team_lead_id,)):
@@ -76,22 +79,25 @@ def duplicate_code_error() -> ApiError:
 
 @require_auth
 def list_projects(request: Request) -> dict:
-    """List projects, optionally filtered by status and by text in name or code."""
-    status = request.query.get("status") or None
+    """List projects, filtered by status, department and text in name or code."""
+    query = request.query
+    status = query.get("status") or None
     if status and status not in PROJECT_STATUSES:
         raise ApiError(400, "validation_error", "Invalid filter",
                        {"status": f"Must be one of: {', '.join(PROJECT_STATUSES)}"})
-    text = (request.query.get("q") or "").strip()
+    text = (query.get("q") or "").strip()
+    department_id = parse_id(query["department_id"], "Department id") if query.get("department_id") else None
 
     # One fixed query: a NULL parameter switches its filter off
     items = db.fetch_all(
         """
         SELECT * FROM project_details
         WHERE (%(status)s::project_status IS NULL OR status = %(status)s::project_status)
+          AND (%(department_id)s::bigint IS NULL OR department_id = %(department_id)s)
           AND (%(search)s::text IS NULL OR name ILIKE %(search)s OR code ILIKE %(search)s)
         ORDER BY created_at DESC, id DESC
         """,
-        {"status": status, "search": db.like_pattern(text) if text else None},
+        {"status": status, "department_id": department_id, "search": db.like_pattern(text) if text else None},
     )
     return json_response(200, {"items": items})
 
@@ -118,9 +124,9 @@ def create_project(request: Request) -> dict:
             row = db.fetch_one(
                 """
                 INSERT INTO projects (code, name, description, status, start_date, end_date, team_lead_id,
-                                      budget_planned, owner_id)
+                                      department_id, budget_planned, owner_id)
                 VALUES (%(code)s, %(name)s, %(description)s, %(status)s, %(start_date)s, %(end_date)s,
-                        %(team_lead_id)s, %(budget_planned)s, %(owner_id)s)
+                        %(team_lead_id)s, %(department_id)s, %(budget_planned)s, %(owner_id)s)
                 RETURNING *
                 """,
                 {**data, "owner_id": request.user.id},
@@ -147,7 +153,7 @@ def update_project(request: Request, project_id: str) -> dict:
                 UPDATE projects
                 SET code = %(code)s, name = %(name)s, description = %(description)s, status = %(status)s,
                     start_date = %(start_date)s, end_date = %(end_date)s, team_lead_id = %(team_lead_id)s,
-                    budget_planned = %(budget_planned)s, updated_at = now()
+                    department_id = %(department_id)s, budget_planned = %(budget_planned)s, updated_at = now()
                 WHERE id = %(id)s
                 RETURNING *
                 """,

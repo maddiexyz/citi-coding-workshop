@@ -15,7 +15,8 @@ from common.http import ApiError, Request, json_response, make_handler, parse_id
 from common.permissions import ADMIN, can_read_project_audit
 from common.validation import Validator
 
-ENTITY_TYPES = ("project", "deliverable", "dependency", "resource", "allocation", "budget_entry", "user")
+ENTITY_TYPES = ("project", "deliverable", "dependency", "resource", "allocation", "budget_entry", "user",
+                "department")
 DEFAULT_LIMIT = 100
 MAX_LIMIT = 500
 
