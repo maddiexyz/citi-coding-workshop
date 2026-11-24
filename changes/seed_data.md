@@ -45,5 +45,5 @@ Lint: flake8 and pylint 10.00 on `tests/seed`; bandit clean on the seeder
 | Generator tests in `tests/seed`, run with the backend venv | They need no database; keeps the seeder self-contained |
 
 ## Not done here
-- The cloud run is yours (`tests/seed/run.sh https://detyiwrgyf771.cloudfront.net`).
-- Nothing pushed.
+- The cloud run was done by the owner on 2026-11-25: everything created, all three
+  dashboard checks ✓. Results are in `changes/phase1_1.md` → *Cloud demo data*.

@@ -131,6 +131,39 @@ Branch `feature/v1.1` (from `feature/increment-e`).
   `tests/load/run.sh cloud` (skipped by the owner; both need an account's
   credentials).
 
+## Cloud demo data (after the freeze, 2026-11-25)
+Seeded the deployed site with `tests/seed/run.sh https://detyiwrgyf771.cloudfront.net`
+(the API seeder from `feature/seed-data`, run by the owner; details in `changes/seed_data.md`).
+
+| Entity | Created / already there |
+| --- | --- |
+| Departments | 7 / 0 |
+| Accounts | 7 / 0 |
+| People | 36 / 0 |
+| Projects | 13 / 0 |
+| Deliverables | 154 / 0 |
+| Dependencies | 62 / 0 |
+| Allocations | 27 / 0 |
+| Spend entries | 50 / 0 |
+| Status updates (by assignees and team leads) | 79 |
+| Projects closed (completed, cancelled) | 2 |
+| People deactivated | 1 |
+
+438 writes in 130 s. That's 3 more than locally because all 7 departments were new in the cloud.
+
+Dashboard check (seeded data against the spec's prediction, then the dashboard total):
+
+| Flag | Seeded / expected | Dashboard total |
+| --- | --- | --- |
+| At-risk projects | ✓ 5 / 5 | 5 |
+| Over-budget projects | ✓ 2 / 2 | 2 |
+| Over-allocated people | ✓ 3 / 3 | 3 |
+
+The totals equal the seeded counts, so nothing else in the cloud was flagged.
+Demo account credentials (one per role) are in the owner's gitignored
+`tests/seed/.demo-credentials`. A second, idempotency run in the cloud
+wasn't recorded.
+
 ## Decisions made on your behalf
 | Item | Decision | Why |
 | --- | --- | --- |
