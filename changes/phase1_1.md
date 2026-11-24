@@ -26,6 +26,15 @@ Branch `feature/v1.1` (from `feature/increment-e`).
   project owner and team lead (list, cards, overview), deliverable assignee,
   people list and person page, allocations, activity log, users list.
 
+## 3. "Mine" filters
+- `GET /api/projects?owner=me` / `?team_lead=me`, `GET /api/deliverables?assignee=me`,
+  `GET /api/allocations?resource=me`. "me" is resolved from the token; any
+  other value for `owner`, `team_lead` or `resource` is a 400. A user with no
+  linked person gets an empty list for `assignee=me` and `resource=me`.
+- Projects list: *All projects* / *Owned by me* (project managers) or *Led
+  by me* (team leads), kept in the URL as `?mine=1`; hidden for viewers and
+  admins.
+
 ## Decisions made on your behalf
 | Item | Decision | Why |
 | --- | --- | --- |
@@ -33,3 +42,5 @@ Branch `feature/v1.1` (from `feature/increment-e`).
 | 1 | Blank or whitespace-only department values become "no department" | There is no name to keep |
 | 1 | Departments are managed in a dialog on the People page, not a separate page | "Small admin UI"; keeps the navigation short |
 | 1 | People grouping is done in the browser from the filtered list | The list already has capacity and this week's hours; no extra endpoint |
+| 3 | The Mine toggle is hidden for admins as well as viewers | The brief names PMs and team leads; admins manage everything |
+| 3 | `assignee=me` / `resource=me` with no linked person return nothing | "Mine" must never widen to everything |

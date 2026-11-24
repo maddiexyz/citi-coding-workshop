@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMediaQuery } from 'react-responsive';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -7,6 +7,8 @@ import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Snackbar from '@mui/material/Snackbar';
 import Stack from '@mui/material/Stack';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import AddIcon from '@mui/icons-material/Add';
 import useAuth from '../auth/useAuth';
@@ -18,6 +20,12 @@ import ProjectFilters from '../components/ProjectFilters';
 import ProjectTable from '../components/ProjectTable';
 
 const SEARCH_DELAY_MS = 300;
+
+/** The "Mine" filter each role gets ("me" is resolved by the backend from the token). */
+const MINE = {
+  project_manager: { label: 'Owned by me', query: { owner: 'me' } },
+  team_lead: { label: 'Led by me', query: { team_lead: 'me' } },
+};
 
 /** Spell out what deleting a project removes with it. */
 function deleteMessage(project) {
@@ -41,6 +49,9 @@ export default function ProjectsPage() {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('');
   const [departmentId, setDepartmentId] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const mineOption = MINE[user?.role] ?? null;
+  const mine = Boolean(mineOption) && searchParams.get('mine') === '1';
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -51,7 +62,7 @@ export default function ProjectsPage() {
 
   // Clear the one-time notice from navigation state so a refresh doesn't repeat it
   useEffect(() => {
-    if (location.state?.notice) navigate(location.pathname, { replace: true, state: null });
+    if (location.state?.notice) navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
   }, [location, navigate]);
 
   // Wait until the user stops typing before searching
@@ -70,7 +81,7 @@ export default function ProjectsPage() {
   // A newer request cancels an older one, so slow responses never win.
   useEffect(() => {
     let cancelled = false;
-    listProjects({ status, q: query, department_id: departmentId })
+    listProjects({ status, q: query, department_id: departmentId, ...(mine ? mineOption.query : {}) })
       .then((items) => {
         if (cancelled) return;
         setProjects(items);
@@ -79,7 +90,13 @@ export default function ProjectsPage() {
       .catch((err) => !cancelled && setError(err.message))
       .finally(() => !cancelled && setLoading(false));
     return () => { cancelled = true; };
-  }, [status, query, departmentId, reloadKey]);
+  }, [status, query, departmentId, mine, mineOption, reloadKey]);
+
+  const changeMine = (_, value) => {
+    if (value === null) return;
+    setLoading(true);
+    setSearchParams(value === 'mine' ? { mine: '1' } : {}, { replace: true });
+  };
 
   const changeStatus = (next) => {
     setLoading(true);
@@ -120,7 +137,7 @@ export default function ProjectsPage() {
   } else if (projects.length === 0) {
     content = (
       <Typography color="text.secondary" sx={{ py: 6, textAlign: 'center' }}>
-        {query || status || departmentId ? 'No projects match these filters.' : 'No projects yet.'}
+        {query || status || departmentId || mine ? 'No projects match these filters.' : 'No projects yet.'}
       </Typography>
     );
   } else {
@@ -138,6 +155,19 @@ export default function ProjectsPage() {
         )}
       </Stack>
 
+      {mineOption && (
+        <ToggleButtonGroup
+          exclusive
+          size="small"
+          value={mine ? 'mine' : 'all'}
+          onChange={changeMine}
+          aria-label="Which projects"
+          sx={{ alignSelf: 'flex-start' }}
+        >
+          <ToggleButton value="all">All projects</ToggleButton>
+          <ToggleButton value="mine">{mineOption.label}</ToggleButton>
+        </ToggleButtonGroup>
+      )}
       <ProjectFilters
         search={search}
         status={status}

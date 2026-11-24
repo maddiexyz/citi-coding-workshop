@@ -3,6 +3,7 @@ Deliverables service: deliverables of a project and the dependencies between the
 
 Routes (served at /api/deliverables; every route needs a Bearer token):
     GET    /        ?project_id&status&blocked&overdue&due_before&assignee&q -> {"items": [...]}
+                    (assignee: a resource id, or "me" for the signed-in user's linked person)
     GET    /{id}                                   -> deliverable + predecessors + successors
     POST   /        deliverable fields + project_id -> 201 deliverable
     PUT    /{id}    deliverable fields              -> deliverable
@@ -20,7 +21,7 @@ written to the audit log in the same transaction.
 from psycopg import errors
 
 from common import audit, db
-from common.auth import require_auth
+from common.auth import linked_resource_id, require_auth
 from common.http import ApiError, Request, json_response, make_handler, parse_bool, parse_id
 from common.permissions import can_delete_deliverables, can_edit_deliverables
 from common.validation import Validator
@@ -88,6 +89,16 @@ def require_edit(request: Request, project: dict) -> None:
         raise ApiError(403, "forbidden", "You cannot change deliverables in this project")
 
 
+def assignee_filter(request: Request) -> int | None:
+    """The ?assignee= filter: a resource id, or "me" (resolved from the token; no linked person matches nothing)."""
+    raw = request.query.get("assignee")
+    if not raw:
+        return None
+    if raw == "me":
+        return linked_resource_id(request.user) or 0   # 0 matches no deliverable
+    return parse_id(raw, "Assignee id")
+
+
 @require_auth
 def list_deliverables(request: Request) -> dict:
     """List deliverables, filtered by project, status, blocked, overdue, due date and text."""
@@ -121,7 +132,7 @@ def list_deliverables(request: Request) -> dict:
             "blocked": parse_bool("blocked", query.get("blocked")),
             "overdue": parse_bool("overdue", query.get("overdue")),
             "due_before": due_before,
-            "assignee": parse_id(query["assignee"], "Assignee id") if query.get("assignee") else None,
+            "assignee": assignee_filter(request),
             "search": db.like_pattern(text) if text else None,
         },
     )

@@ -2,7 +2,7 @@
 Projects service: list, read, create, update and delete projects.
 
 Routes (served at /api/projects; every route needs a Bearer token):
-    GET    /             ?status&q&department_id -> {"items": [...]}
+    GET    /             ?status&q&department_id&owner=me&team_lead=me -> {"items": [...]}
     GET    /{id}                               -> project
     POST   /             project fields        -> 201 project
     PUT    /{id}         project fields        -> project
@@ -21,7 +21,7 @@ from decimal import Decimal
 from psycopg import errors
 
 from common import audit, db
-from common.auth import require_auth
+from common.auth import me_filter, require_auth
 from common.http import ApiError, Request, json_response, make_handler, parse_id
 from common.permissions import can_change_project, can_create_project, can_delete_project
 from common.validation import Validator
@@ -87,6 +87,9 @@ def list_projects(request: Request) -> dict:
                        {"status": f"Must be one of: {', '.join(PROJECT_STATUSES)}"})
     text = (query.get("q") or "").strip()
     department_id = parse_id(query["department_id"], "Department id") if query.get("department_id") else None
+    # "Mine": projects the signed-in user owns or leads ("me" comes from the token)
+    owner = request.user.id if me_filter("owner", query.get("owner")) else None
+    team_lead = request.user.id if me_filter("team_lead", query.get("team_lead")) else None
 
     # One fixed query: a NULL parameter switches its filter off
     items = db.fetch_all(
@@ -94,10 +97,13 @@ def list_projects(request: Request) -> dict:
         SELECT * FROM project_details
         WHERE (%(status)s::project_status IS NULL OR status = %(status)s::project_status)
           AND (%(department_id)s::bigint IS NULL OR department_id = %(department_id)s)
+          AND (%(owner)s::bigint IS NULL OR owner_id = %(owner)s)
+          AND (%(team_lead)s::bigint IS NULL OR team_lead_id = %(team_lead)s)
           AND (%(search)s::text IS NULL OR name ILIKE %(search)s OR code ILIKE %(search)s)
         ORDER BY created_at DESC, id DESC
         """,
-        {"status": status, "department_id": department_id, "search": db.like_pattern(text) if text else None},
+        {"status": status, "department_id": department_id, "owner": owner, "team_lead": team_lead,
+         "search": db.like_pattern(text) if text else None},
     )
     return json_response(200, {"items": items})
 

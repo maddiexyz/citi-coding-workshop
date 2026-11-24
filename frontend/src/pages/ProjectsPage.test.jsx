@@ -67,6 +67,28 @@ describe('ProjectsPage', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent('set its status to completed or cancelled');
   });
 
+  it('lets a project manager switch to the projects they own, kept in the URL', async () => {
+    renderAs('project_manager');
+    await screen.findByText('My project');
+    await userEvent.click(screen.getByRole('button', { name: 'Owned by me' }));
+    expect(listProjects).toHaveBeenLastCalledWith({ status: '', q: '', department_id: '', owner: 'me' });
+    expect(screen.getByRole('button', { name: 'Owned by me' })).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'All projects' }));
+    expect(listProjects).toHaveBeenLastCalledWith({ status: '', q: '', department_id: '' });
+  });
+
+  it('offers team leads the projects they lead and hides the toggle from viewers', async () => {
+    renderAs('team_lead');
+    await userEvent.click(await screen.findByRole('button', { name: 'Led by me' }));
+    expect(listProjects).toHaveBeenLastCalledWith({ status: '', q: '', department_id: '', team_lead: 'me' });
+  });
+
+  it('hides the Mine toggle from viewers', async () => {
+    renderAs('viewer');
+    await screen.findByText('My project');
+    expect(screen.queryByRole('group', { name: 'Which projects' })).not.toBeInTheDocument();
+  });
+
   it('uses a table on desktop and cards on mobile', async () => {
     const { unmount } = renderAs('viewer', 1200);
     expect(await screen.findByRole('table', { name: 'Projects' })).toBeInTheDocument();

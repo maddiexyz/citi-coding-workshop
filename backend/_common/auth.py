@@ -111,3 +111,27 @@ def require_auth(func: Callable[..., dict]) -> Callable[..., dict]:
         return func(request, **params)
 
     return wrapper
+
+
+def linked_resource_id(user: CurrentUser) -> int | None:
+    """The id of the person (resource) linked to this account, or None."""
+    row = db.fetch_one("SELECT id FROM resources WHERE user_id = %s", (user.id,))
+    return row["id"] if row else None
+
+
+def me_filter(name: str, raw: str | None) -> bool:
+    """
+    Read a "<name>=me" filter. Only the literal "me" is accepted: who "me" is
+    comes from the verified token, never from the request.
+
+    Returns:
+        True if the filter is set.
+
+    Raises:
+        ApiError: 400 for any other value.
+    """
+    if raw in (None, ""):
+        return False
+    if raw == "me":
+        return True
+    raise ApiError(400, "validation_error", "Invalid filter", {name: 'Only "me" is supported'})

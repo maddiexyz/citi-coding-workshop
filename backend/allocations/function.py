@@ -2,7 +2,7 @@
 Allocations service: hours per week a resource works on a project, for a period.
 
 Routes (served at /api/allocations; every route needs a Bearer token):
-    GET    /       ?project_id&resource_id&active_on -> {"items": [...]}
+    GET    /       ?project_id&resource_id&resource=me&active_on -> {"items": [...]}
     GET    /{id}                                     -> allocation
     POST   /       allocation fields + project_id    -> 201 allocation + warnings  (admin, owning PM)
     PUT    /{id}   allocation fields                 -> allocation + warnings      (admin, owning PM)
@@ -25,7 +25,7 @@ from decimal import Decimal
 from psycopg import errors
 
 from common import audit, db
-from common.auth import require_auth
+from common.auth import linked_resource_id, me_filter, require_auth
 from common.http import ApiError, Request, json_response, make_handler, parse_id
 from common.permissions import can_manage_allocations
 from common.validation import Validator
@@ -131,6 +131,10 @@ def list_allocations(request: Request) -> dict:
     active_on: date | None = filters.date("active_on")
     if filters.errors:
         raise ApiError(400, "validation_error", "Invalid filter", filters.errors)
+    resource_id = parse_id(query["resource_id"], "Resource id") if query.get("resource_id") else None
+    if me_filter("resource", query.get("resource")):
+        # The signed-in user's own allocations; no linked person matches nothing
+        resource_id = linked_resource_id(request.user) or 0
     items = db.fetch_all(
         SELECT_ALLOCATION + """
         WHERE (%(project_id)s::bigint IS NULL OR a.project_id = %(project_id)s)
@@ -140,7 +144,7 @@ def list_allocations(request: Request) -> dict:
         """,
         {
             "project_id": parse_id(query["project_id"], "Project id") if query.get("project_id") else None,
-            "resource_id": parse_id(query["resource_id"], "Resource id") if query.get("resource_id") else None,
+            "resource_id": resource_id,
             "active_on": active_on,
         },
     )
