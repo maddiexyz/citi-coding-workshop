@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "coverage": "vitest run --coverage"
+    "coverage": "vitest run --coverage",
+    "e2e": "node cypress/run.mjs",
+    "e2e:open": "cypress open"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -31,6 +33,9 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "@vitest/coverage-v8": "^5.1.1",
+    "axe-core": "^4.14.1",
+    "cypress": "^15.21.2",
+    "cypress-axe": "^1.7.0",
     "eslint": "^10.0.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.8",

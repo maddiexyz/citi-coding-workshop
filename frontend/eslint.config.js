@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', 'coverage', 'cypress/screenshots', 'cypress/videos']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
@@ -25,5 +25,17 @@ export default defineConfig([
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
     },
+  },
+  {
+    // Cypress specs and support files run in the Cypress runner (mocha + cy globals)
+    files: ['cypress/**/*.js'],
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.mocha, cy: 'readonly', Cypress: 'readonly' },
+    },
+  },
+  {
+    // Node scripts: the Cypress config and the e2e runner
+    files: ['cypress.config.js', 'cypress/run.mjs', 'vite.config.js'],
+    languageOptions: { globals: globals.node },
   },
 ])
