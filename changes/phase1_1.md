@@ -35,6 +35,30 @@ Branch `feature/v1.1` (from `feature/increment-e`).
   by me* (team leads), kept in the URL as `?mine=1`; hidden for viewers and
   admins.
 
+## 4. My work page
+- `/my-work` (`frontend/src/pages/MyWorkPage.jsx`) is first in the
+  navigation and the landing page after sign-in for everyone but admins
+  (`frontend/src/auth/homePath.js`: admin → `/dashboard`, others →
+  `/my-work`; unknown routes go to the same place). It has three sections,
+  each with its own loading, empty and error state:
+  - *My deliverables*: deliverables assigned to me that are overdue,
+    blocked (not done or cancelled) or due within 7 days, grouped with
+    counts, linked to the project's Deliverables tab, with the blocked and
+    overdue flags.
+  - *My allocations (next 8 weeks)*: my capacity, the allocations that
+    touch those weeks (linked to the project's Allocations tab), the weekly
+    load table, and a warning naming the first over-allocated week.
+  - *My projects*: projects I own or lead (marked *Owner*, *Team lead* or
+    both), with status, at-risk severity and reasons, and budget burn.
+- An account with no linked person sees a note explaining that its
+  deliverables and allocations appear once an admin links it to a person on
+  the People page; *My projects* still shows.
+- New filter `GET /api/deliverables?due_soon=true`: not done or cancelled
+  and due within 7 days, by the database clock (`current_date + 7`), like
+  the other date rules.
+- Tests: `MyWorkPage.test.jsx` (sections, empty states, no linked person)
+  and backend `test_mine_filters.py` (`due_soon`); E2E `10-my-work.cy.js`.
+
 ## 5. Assignees update their own deliverables
 - Rule `can_update_deliverable_status` in `backend/_common/permissions.py`,
   mirrored as `canUpdateDeliverableStatus` in `frontend/src/auth/permissions.js`:
