@@ -1,7 +1,8 @@
-# Lambda CPU scales with memory. auth checks bcrypt passwords (cost 12), which
-# takes ~4.5 s at the default 128 MB and well under a second at 1024 MB.
+# Lambda CPU scales with memory. auth and users hash or check bcrypt
+# passwords (cost 12), which takes ~4.5 s at the default 128 MB and well under
+# a second at 1024 MB.
 locals {
-  function_memory = { auth = 1024 }
+  function_memory = { auth = 1024, users = 1024 }
 }
 
 module "lambda" {

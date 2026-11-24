@@ -10,6 +10,7 @@ import importlib
 import importlib.util
 import json
 import os
+import pkgutil
 import subprocess
 import sys
 from pathlib import Path
@@ -35,7 +36,12 @@ os.environ.update({
 # Services import the shared code as ``common`` (bin/sync-common.sh copies it
 # in at deploy time); in tests, point that name at backend/_common directly
 sys.path.insert(0, str(BACKEND_DIR))
-sys.modules["common"] = importlib.import_module("_common")
+_COMMON = importlib.import_module("_common")
+sys.modules["common"] = _COMMON
+# Register every submodule under both names, so "common.http" and
+# "_common.http" are the same module (one ApiError class, one connection)
+for _info in pkgutil.iter_modules(_COMMON.__path__):
+    sys.modules[f"common.{_info.name}"] = importlib.import_module(f"_common.{_info.name}")
 
 from _common import db  # noqa: E402  pylint: disable=wrong-import-position
 from _common.auth import create_token  # noqa: E402  pylint: disable=wrong-import-position
@@ -50,19 +56,23 @@ def load_service(name: str):
     return module
 
 
-def make_event(method: str, path: str = "/", body: Optional[object] = None,
-               token: Optional[str] = None, query: Optional[dict] = None) -> dict:
-    """Build a Lambda Function URL event like the local proxy sends."""
-    headers = {"content-type": "application/json"}
+def make_event(method: str, path: str = "/", body: Optional[object] = None,  # pylint: disable=too-many-arguments
+               token: Optional[str] = None, query: Optional[dict] = None,
+               cookies: Optional[dict] = None, headers: Optional[dict] = None) -> dict:
+    """Build a Lambda Function URL (payload v2) event like the local proxy or CloudFront sends."""
+    all_headers = {"content-type": "application/json", **(headers or {})}
     if token:
-        headers["authorization"] = f"Bearer {token}"
-    return {
+        all_headers["authorization"] = f"Bearer {token}"
+    event = {
         "rawPath": path,
         "requestContext": {"http": {"method": method}},
-        "headers": headers,
+        "headers": all_headers,
         "queryStringParameters": query,
         "body": body if isinstance(body, str) or body is None else json.dumps(body),
     }
+    if cookies:
+        event["cookies"] = [f"{name}={value}" for name, value in cookies.items()]
+    return event
 
 
 def call(service, method: str, path: str = "/", **kwargs) -> tuple[int, Optional[dict]]:
@@ -70,6 +80,11 @@ def call(service, method: str, path: str = "/", **kwargs) -> tuple[int, Optional
     response = service.handler(make_event(method, path, **kwargs))
     body = response.get("body")
     return response["statusCode"], json.loads(body) if body else None
+
+
+def call_raw(service, method: str, path: str = "/", **kwargs) -> dict:
+    """Invoke a service handler and return the whole Lambda response (status, headers, cookies, body)."""
+    return service.handler(make_event(method, path, **kwargs))
 
 
 def _admin_env() -> dict:
@@ -125,7 +140,7 @@ def empty_projects(request):
     """Start every database test with no projects or resources (and so nothing that hangs off them)."""
     if "users" in request.fixturenames:
         request.getfixturevalue("users")  # make sure the database exists first
-        db.execute("TRUNCATE projects, resources, audit_log RESTART IDENTITY CASCADE")
+        db.execute("TRUNCATE projects, resources, audit_log, login_attempts, refresh_tokens RESTART IDENTITY CASCADE")
 
 
 @pytest.fixture(scope="session")
@@ -174,3 +189,9 @@ def budget_service():
 def audit_service():
     """The audit service module."""
     return load_service("audit")
+
+
+@pytest.fixture(scope="session")
+def dashboard_service():
+    """The dashboard service module."""
+    return load_service("dashboard")

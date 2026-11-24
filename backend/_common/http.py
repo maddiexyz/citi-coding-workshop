@@ -24,7 +24,9 @@ logger.setLevel(logging.INFO)
 class ApiError(Exception):
     """An error that is returned to the client as a JSON error response."""
 
-    def __init__(self, status: int, code: str, message: str, details: Optional[dict] = None):
+    # pylint: disable-next=too-many-arguments
+    def __init__(self, status: int, code: str, message: str, details: Optional[dict] = None,
+                 *, headers: Optional[dict[str, str]] = None, cookies: Optional[list[str]] = None):
         """
         Create an API error.
 
@@ -33,12 +35,16 @@ class ApiError(Exception):
             code: Stable machine-readable error code, e.g. "not_found".
             message: Human-readable explanation shown to users.
             details: Optional extra information, e.g. per-field validation messages.
+            headers: Extra response headers, e.g. Retry-After for 429.
+            cookies: Set-Cookie values to send with the error, e.g. to clear a cookie.
         """
         super().__init__(message)
         self.status = status
         self.code = code
         self.message = message
         self.details = details
+        self.headers = headers
+        self.cookies = cookies
 
 
 @dataclass
@@ -50,6 +56,8 @@ class Request:
     query: dict[str, str]
     headers: dict[str, str]
     body: Optional[str]
+    cookies: dict[str, str] = field(default_factory=dict)
+    source_ip: Optional[str] = None
     user: Any = field(default=None)
 
     def json(self) -> dict:
@@ -93,13 +101,46 @@ def parse_request(event: dict) -> Request:
     if body and event.get("isBase64Encoded"):
         body = base64.b64decode(body).decode("utf-8")
 
+    headers = {key.lower(): value for key, value in (event.get("headers") or {}).items()}
     return Request(
         method=http.get("method", "GET").upper(),
         path=segments,
         query=event.get("queryStringParameters") or {},
-        headers={key.lower(): value for key, value in (event.get("headers") or {}).items()},
+        headers=headers,
         body=body,
+        cookies=parse_cookies(event.get("cookies") or [], headers.get("cookie", "")),
+        source_ip=client_ip(headers, http.get("sourceIp")),
     )
+
+
+def parse_cookies(cookie_list: list[str], cookie_header: str) -> dict[str, str]:
+    """
+    Read cookies from a Function URL event.
+
+    Payload v2 moves the Cookie header into an event["cookies"] list; the
+    local proxy may still send a Cookie header. Both are accepted.
+    """
+    pairs = [*cookie_list, *cookie_header.split(";")]
+    cookies = {}
+    for pair in pairs:
+        name, sep, value = pair.strip().partition("=")
+        if sep and name:
+            cookies.setdefault(name, value)
+    return cookies
+
+
+def client_ip(headers: dict[str, str], source_ip: Optional[str]) -> Optional[str]:
+    """
+    The caller's IP address.
+
+    Behind CloudFront the Lambda sees CloudFront's address, so the viewer's
+    comes from CloudFront-Viewer-Address ("ip:port", set by CloudFront, not by
+    the browser). X-Forwarded-For is not used: its first entry can be forged.
+    """
+    viewer = headers.get("cloudfront-viewer-address")
+    if viewer:
+        return viewer.rsplit(":", 1)[0].strip("[]")
+    return source_ip
 
 
 def json_default(value: Any) -> str:
@@ -111,20 +152,25 @@ def json_default(value: Any) -> str:
     raise TypeError(f"Cannot serialize {type(value).__name__}")
 
 
-def json_response(status: int, body: Any = None) -> dict:
+def json_response(status: int, body: Any = None, *, headers: Optional[dict[str, str]] = None,
+                  cookies: Optional[list[str]] = None) -> dict:
     """
     Build a Lambda response with a JSON body.
 
     Args:
         status: HTTP status code.
         body: Any JSON-serializable value, or None for an empty body (e.g. 204).
+        headers: Extra response headers, e.g. Retry-After.
+        cookies: Set-Cookie values (Function URLs take them in a separate "cookies" list).
 
     Returns:
         A Lambda Function URL response dict.
     """
-    response = {"statusCode": status, "headers": {"Content-Type": "application/json"}}
+    response = {"statusCode": status, "headers": {"Content-Type": "application/json", **(headers or {})}}
     if body is not None:
         response["body"] = json.dumps(body, default=json_default)
+    if cookies:
+        response["cookies"] = cookies
     return response
 
 
@@ -133,7 +179,7 @@ def error_response(error: ApiError) -> dict:
     payload = {"code": error.code, "message": error.message}
     if error.details:
         payload["details"] = error.details
-    return json_response(error.status, {"error": payload})
+    return json_response(error.status, {"error": payload}, headers=error.headers, cookies=error.cookies)
 
 
 # ASCII digits only: str.isdigit() also accepts characters such as "²"

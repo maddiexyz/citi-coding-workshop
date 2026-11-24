@@ -17,7 +17,8 @@ from . import db
 from .http import ApiError, Request
 
 ALGORITHM = "HS256"
-TOKEN_TTL_MINUTES = int(os.getenv("JWT_TTL_MINUTES", "30"))
+# Short-lived: a refresh token (common.sessions) renews it without signing in again
+TOKEN_TTL_MINUTES = int(os.getenv("JWT_TTL_MINUTES", "15"))
 
 
 @dataclass(frozen=True)

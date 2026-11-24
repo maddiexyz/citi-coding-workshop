@@ -35,10 +35,18 @@ try {
 }
 
 const server = http.createServer((req, res) => {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Enable CORS. Echo the caller's origin (not '*') so the browser may send
+  // the refresh-token cookie with credentials: 'include'.
+  if (req.headers.origin) {
+    res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Vary', 'Origin');
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'authorization, content-type');
+  res.setHeader('Access-Control-Expose-Headers', 'Retry-After');
   res.setHeader('Access-Control-Max-Age', '86400');
 
   // Handle preflight
@@ -105,7 +113,9 @@ const server = http.createServer((req, res) => {
       'user-agent': headers['user-agent'] || 'proxy-server',
       'host': target.host,
       // Forward the bearer token so backend services can authenticate requests
-      ...(headers.authorization ? { 'authorization': headers.authorization } : {})
+      ...(headers.authorization ? { 'authorization': headers.authorization } : {}),
+      // Forward cookies (the refresh token for /api/auth)
+      ...(headers.cookie ? { 'cookie': headers.cookie } : {})
     }
   };
 
@@ -116,6 +126,8 @@ const server = http.createServer((req, res) => {
     delete headers['access-control-allow-methods'];
     delete headers['access-control-allow-headers'];
     delete headers['access-control-max-age'];
+    delete headers['access-control-allow-credentials'];
+    delete headers['access-control-expose-headers'];
 
     // Forward status and filtered headers
     res.writeHead(proxyRes.statusCode, headers);
