@@ -14,6 +14,7 @@ import Typography from '@mui/material/Typography';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import useAuth from '../auth/useAuth';
+import useYou from '../auth/useYou';
 import { canChangeProject, canReadProjectAudit } from '../auth/permissions';
 import ProjectStatusChip from '../components/ProjectStatusChip';
 import AllocationsPanel from '../components/allocations/AllocationsPanel';
@@ -45,6 +46,7 @@ Detail.propTypes = { label: PropTypes.string.isRequired, children: PropTypes.nod
 
 /** Overview tab: key facts and deliverable progress. */
 function Overview({ project }) {
+  const you = useYou();
   const total = project.deliverables_total ?? 0;
   const done = project.deliverables_done ?? 0;
   const percent = total ? Math.round((done / total) * 100) : 0;
@@ -52,8 +54,8 @@ function Overview({ project }) {
     <Stack spacing={3}>
       {project.description && <Typography sx={{ whiteSpace: 'pre-wrap' }}>{project.description}</Typography>}
       <Box component="dl" sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(5, 1fr)' }, gap: 2, m: 0 }}>
-        <Detail label="Owner">{project.owner_name}</Detail>
-        <Detail label="Team lead">{project.team_lead_name ?? 'Not assigned'}</Detail>
+        <Detail label="Owner">{you.user(project.owner_id, project.owner_name)}</Detail>
+        <Detail label="Team lead">{you.user(project.team_lead_id, project.team_lead_name) ?? 'Not assigned'}</Detail>
         <Detail label="Department">{project.department_name ?? '—'}</Detail>
         <Detail label="Start">{formatDate(project.start_date)}</Detail>
         <Detail label="End">{formatDate(project.end_date)}</Detail>

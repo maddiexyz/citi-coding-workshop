@@ -8,6 +8,7 @@ import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import useYou from '../auth/useYou';
 import BurnChip from './budget/BurnChip';
 import ProjectActions from './ProjectActions';
 import ProjectStatusChip from './ProjectStatusChip';
@@ -16,6 +17,7 @@ import { formatDate, formatProgress } from '../utils/format';
 
 /** Desktop view: projects in a table. */
 export default function ProjectTable({ projects, canChange, canDelete, onDelete }) {
+  const you = useYou();
   return (
     <TableContainer component={Paper} variant="outlined">
       <Table aria-label="Projects">
@@ -40,7 +42,7 @@ export default function ProjectTable({ projects, canChange, canDelete, onDelete 
                 <Link component={RouterLink} to={`/projects/${project.id}`}>{project.name}</Link>
               </TableCell>
               <TableCell><ProjectStatusChip status={project.status} /></TableCell>
-              <TableCell>{project.owner_name}</TableCell>
+              <TableCell>{you.user(project.owner_id, project.owner_name)}</TableCell>
               <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatProgress(project)}</TableCell>
               <TableCell><BurnChip project={project} /></TableCell>
               <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(project.start_date)}</TableCell>

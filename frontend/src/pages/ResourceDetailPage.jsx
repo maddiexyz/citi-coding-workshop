@@ -13,6 +13,7 @@ import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import useYou from '../auth/useYou';
 import OverAllocatedChip from '../components/resources/OverAllocatedChip';
 import WeeklyLoadTable from '../components/resources/WeeklyLoadTable';
 import { getResource, getResourceLoad } from '../services/resourcesApi';
@@ -21,6 +22,7 @@ import { formatDate, formatHours } from '../utils/format';
 /** One person: capacity, allocations and their load for the next 8 weeks. */
 export default function ResourceDetailPage() {
   const { id } = useParams();
+  const you = useYou();
   const [state, setState] = useState({ key: null, resource: null, weeks: [], error: null });
 
   useEffect(() => {
@@ -44,7 +46,7 @@ export default function ResourceDetailPage() {
       <Button component={RouterLink} to="/resources" startIcon={<ArrowBackIcon />} sx={{ alignSelf: 'flex-start' }}>People</Button>
       <Box>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-          <Typography variant="h4" component="h1">{resource.full_name}</Typography>
+          <Typography variant="h4" component="h1">{you.resource(resource.id, resource.full_name)}</Typography>
           {!resource.is_active && <Chip size="small" variant="outlined" label="Inactive" />}
           {resource.over_allocated && <OverAllocatedChip />}
         </Stack>

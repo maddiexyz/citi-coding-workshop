@@ -6,6 +6,7 @@ import CardActions from '@mui/material/CardActions';
 import CardContent from '@mui/material/CardContent';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
+import useYou from '../auth/useYou';
 import BurnChip from './budget/BurnChip';
 import ProjectActions from './ProjectActions';
 import ProjectStatusChip from './ProjectStatusChip';
@@ -14,6 +15,7 @@ import { formatDate, formatProgress } from '../utils/format';
 
 /** Mobile view: one card per project. */
 export default function ProjectCardList({ projects, canChange, canDelete, onDelete }) {
+  const you = useYou();
   return (
     <Stack spacing={1.5} component="ul" sx={{ listStyle: 'none', p: 0, m: 0 }} aria-label="Projects">
       {projects.map((project) => (
@@ -26,7 +28,7 @@ export default function ProjectCardList({ projects, canChange, canDelete, onDele
             </Stack>
             <Typography variant="h6" component="h2">{project.name}</Typography>
             <Typography variant="body2" color="text.secondary">
-              {project.owner_name}
+              {you.user(project.owner_id, project.owner_name)}
               {' · '}
               {formatDate(project.start_date)}
               {' – '}

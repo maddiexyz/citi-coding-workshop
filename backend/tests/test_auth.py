@@ -38,7 +38,7 @@ def test_login_returns_token_for_valid_credentials(auth_service, users):
                         body={"email": "PM@acme.test", "password": "Passw0rd!"})
     assert status == 200
     assert body["user"] == {"id": users["pm"]["id"], "email": "pm@acme.test",
-                            "full_name": "Pm", "role": "project_manager"}
+                            "full_name": "Pm", "role": "project_manager", "resource_id": None}
     claims = decode_token(body["token"])
     assert (claims.id, claims.role) == (users["pm"]["id"], "project_manager")
 
@@ -74,3 +74,12 @@ def test_me_returns_current_user(auth_service, users):
     status, body = call(auth_service, "GET", "/me", token=users["viewer"]["token"])
     assert status == 200
     assert body["user"]["email"] == "viewer@acme.test"
+
+
+def test_me_returns_the_linked_resource(auth_service, resources_service, users):
+    status, body = call(auth_service, "GET", "/me", token=users["team_lead"]["token"])
+    assert (status, body["user"]["resource_id"]) == (200, None)
+    resource = call(resources_service, "POST", "/", token=users["admin"]["token"],
+                    body={"full_name": "Team Lead", "user_id": users["team_lead"]["id"]})[1]
+    assert call(auth_service, "GET", "/me", token=users["team_lead"]["token"])[1]["user"]["resource_id"] == \
+        resource["id"]

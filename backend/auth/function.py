@@ -7,6 +7,9 @@ Routes (served at /api/auth):
     POST /logout   (refresh cookie)      -> 204, cookie cleared
     GET  /me       (Bearer token)        -> {"user"}
 
+"user" is {id, email, full_name, role, resource_id}: resource_id is the
+person (resource) linked to this account, or null.
+
 The access token (JWT, 15 minutes) goes in the Authorization header; the
 refresh token lives in an HttpOnly cookie (see common.sessions).
 
@@ -32,12 +35,14 @@ MAX_FAILURES_PER_IP = 20
 
 
 def public_user(row: dict) -> dict:
-    """Return the user fields that are safe to send to the client."""
+    """Return the user fields that are safe to send to the client, with the linked resource."""
+    resource = db.fetch_one("SELECT id FROM resources WHERE user_id = %s", (row["id"],))
     return {
         "id": row["id"],
         "email": row["email"],
         "full_name": row["full_name"],
         "role": row["role"],
+        "resource_id": resource["id"] if resource else None,
     }
 
 

@@ -32,6 +32,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import SearchIcon from '@mui/icons-material/Search';
 import useAuth from '../auth/useAuth';
+import useYou from '../auth/useYou';
 import { canManageDepartments, canManageResources } from '../auth/permissions';
 import ConfirmDialog from '../components/ConfirmDialog';
 import OverAllocatedChip from '../components/resources/OverAllocatedChip';
@@ -77,6 +78,7 @@ export default function ResourcesPage() {
   const { user } = useAuth();
   const isDesktop = useMediaQuery({ minWidth: 900 });
   const canManage = canManageResources(user);
+  const you = useYou();
 
   const [search, setSearch] = useState('');
   const q = useDebouncedValue(search.trim());
@@ -131,7 +133,7 @@ export default function ResourcesPage() {
     }
   };
 
-  const nameLink = (r) => <Link component={RouterLink} to={`/resources/${r.id}`}>{r.full_name}</Link>;
+  const nameLink = (r) => <Link component={RouterLink} to={`/resources/${r.id}`}>{you.resource(r.id, r.full_name)}</Link>;
   const inactive = (r) => !r.is_active && <Chip size="small" variant="outlined" label="Inactive" />;
 
   const renderPeople = (items, label) => (isDesktop ? (

@@ -14,6 +14,7 @@ import TableRow from '@mui/material/TableRow';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import DeleteIcon from '@mui/icons-material/Delete';
+import useYou from '../../auth/useYou';
 import StatusChip from '../StatusChip';
 import DeliverableFlags from './DeliverableFlags';
 import deliverableShape from './deliverablePropTypes';
@@ -41,6 +42,8 @@ DeleteButton.propTypes = { deliverable: deliverableShape.isRequired, onDelete: P
  * the delete button only shows when canDelete is true.
  */
 export default function DeliverableList({ deliverables, isDesktop, canDelete, onOpen, onDelete }) {
+  const you = useYou();
+  const assignee = (item) => you.resource(item.assignee_resource_id, item.assignee_name);
   if (!isDesktop) {
     return (
       <Stack spacing={1.5} component="ul" sx={{ listStyle: 'none', p: 0, m: 0 }} aria-label="Deliverables">
@@ -53,7 +56,7 @@ export default function DeliverableList({ deliverables, isDesktop, canDelete, on
                   <StatusChip status={item.status} statuses={DELIVERABLE_STATUSES} />
                 </Stack>
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                  {item.assignee_name ?? 'Unassigned'} · Due {formatDate(item.due_date)}
+                  {assignee(item) ?? 'Unassigned'} · Due {formatDate(item.due_date)}
                   {item.predecessor_count > 0 && ` · depends on ${item.predecessor_count}`}
                 </Typography>
                 <DeliverableFlags isBlocked={item.is_blocked} isOverdue={item.is_overdue} />
@@ -97,7 +100,7 @@ export default function DeliverableList({ deliverables, isDesktop, canDelete, on
             >
               <TableCell sx={{ fontWeight: 600 }}>{item.title}</TableCell>
               <TableCell><StatusChip status={item.status} statuses={DELIVERABLE_STATUSES} /></TableCell>
-              <TableCell>{item.assignee_name ?? '—'}</TableCell>
+              <TableCell>{assignee(item) ?? '—'}</TableCell>
               <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(item.due_date)}</TableCell>
               <TableCell>{item.predecessor_count || '—'}</TableCell>
               <TableCell><DeliverableFlags isBlocked={item.is_blocked} isOverdue={item.is_overdue} /></TableCell>

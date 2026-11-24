@@ -29,6 +29,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import KeyIcon from '@mui/icons-material/Key';
 import SearchIcon from '@mui/icons-material/Search';
 import useAuth from '../auth/useAuth';
+import useYou from '../auth/useYou';
 import { ROLE_LABELS, canManageUsers } from '../auth/permissions';
 import ConfirmDialog from '../components/ConfirmDialog';
 import PasswordDialog from '../components/users/PasswordDialog';
@@ -61,6 +62,7 @@ Actions.propTypes = {
 /** Admin-only: sign-in accounts, their roles and whether they can sign in. */
 export default function UsersPage() {
   const { user: me } = useAuth();
+  const you = useYou();
   const isDesktop = useMediaQuery({ minWidth: 900 });
   const [search, setSearch] = useState('');
   const q = useDebouncedValue(search.trim());
@@ -124,7 +126,7 @@ export default function UsersPage() {
           <TableBody>
             {result.items.map((u) => (
               <TableRow key={u.id} hover>
-                <TableCell sx={{ fontWeight: 600 }}>{u.full_name}{u.id === me.id && ' (you)'}</TableCell>
+                <TableCell sx={{ fontWeight: 600 }}>{you.user(u.id, u.full_name)}</TableCell>
                 <TableCell>{u.email}</TableCell>
                 <TableCell>{ROLE_LABELS[u.role] ?? u.role}</TableCell>
                 <TableCell>{status(u)}</TableCell>
@@ -142,7 +144,7 @@ export default function UsersPage() {
           <Card key={u.id} variant="outlined" component="li">
             <CardContent>
               <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography sx={{ fontWeight: 600 }}>{u.full_name}{u.id === me.id && ' (you)'}</Typography>
+                <Typography sx={{ fontWeight: 600 }}>{you.user(u.id, u.full_name)}</Typography>
                 {status(u)}
               </Stack>
               <Typography variant="body2" color="text.secondary">{u.email} · {ROLE_LABELS[u.role] ?? u.role}</Typography>

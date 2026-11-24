@@ -42,6 +42,7 @@ describe('ProjectDetailPage', () => {
   it('gives the owning PM Edit and Activity, and switches tabs', async () => {
     open({ id: 7, role: 'project_manager' });
     expect(await screen.findByRole('link', { name: /edit project/i })).toBeInTheDocument();
+    expect(screen.getByText('Pat (you)')).toBeInTheDocument();
     for (const [tab, panel] of [['Deliverables', 'deliverables'], ['Allocations', 'allocations'],
       ['Budget', 'budget'], ['Activity', 'activity']]) {
       await userEvent.click(screen.getByRole('tab', { name: tab }));

@@ -24,6 +24,7 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import useAuth from '../../auth/useAuth';
+import useYou from '../../auth/useYou';
 import { canManageAllocations } from '../../auth/permissions';
 import { deleteAllocation, listAllocations } from '../../services/allocationsApi';
 import { listResources } from '../../services/resourcesApi';
@@ -39,6 +40,7 @@ export default function AllocationsPanel({ project }) {
   const { user } = useAuth();
   const isDesktop = useMediaQuery({ minWidth: 900 });
   const canManage = canManageAllocations(user, project);
+  const you = useYou();
   const [reloadKey, setReloadKey] = useState(0);
   const [result, setResult] = useState({ key: null, items: [], over: new Set(), error: null });
   const [dialog, setDialog] = useState(null); // {allocation|null}
@@ -87,7 +89,7 @@ export default function AllocationsPanel({ project }) {
   };
 
   const overNow = result.items.filter((a) => result.over.has(a.resource_id));
-  const person = (a) => <Link component={RouterLink} to={`/resources/${a.resource_id}`}>{a.resource_name}</Link>;
+  const person = (a) => <Link component={RouterLink} to={`/resources/${a.resource_id}`}>{you.resource(a.resource_id, a.resource_name)}</Link>;
   const actions = (a) => canManage && (
     <>
       <Tooltip title="Edit"><IconButton aria-label={`Edit allocation for ${a.resource_name}`} onClick={() => setDialog({ allocation: a })}><EditIcon fontSize="small" /></IconButton></Tooltip>
@@ -163,7 +165,7 @@ export default function AllocationsPanel({ project }) {
       {warning && <Alert severity="warning" onClose={() => setWarning(null)}>{warning}</Alert>}
       {!loading && overNow.length > 0 && (
         <Alert severity="info">
-          Over-allocated this week: {[...new Set(overNow.map((a) => a.resource_name))].join(', ')}. Check their other projects.
+          Over-allocated this week: {[...new Set(overNow.map((a) => you.resource(a.resource_id, a.resource_name)))].join(', ')}. Check their other projects.
         </Alert>
       )}
       {result.error && <Alert severity="error">{result.error}</Alert>}

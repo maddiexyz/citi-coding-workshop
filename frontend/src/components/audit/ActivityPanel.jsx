@@ -10,6 +10,7 @@ import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import useYou from '../../auth/useYou';
 import { listAudit } from '../../services/auditApi';
 import projectShape from '../projectPropTypes';
 
@@ -27,6 +28,7 @@ function show(value) {
 
 /** The Activity tab: who changed what in this project, newest first (admin and the owning PM). */
 export default function ActivityPanel({ project }) {
+  const you = useYou();
   const [entityType, setEntityType] = useState('');
   const [state, setState] = useState({ key: null, items: [], error: null });
   const key = `${project.id}:${project.updated_at}:${entityType}`;
@@ -60,7 +62,7 @@ export default function ActivityPanel({ project }) {
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>{entry.summary}</Typography>
                 </Stack>
                 <Typography variant="caption" color="text.secondary">
-                  {entry.actor_name ?? 'Unknown user'} · {TIME_FORMAT.format(new Date(entry.occurred_at))}
+                  {you.user(entry.actor_user_id, entry.actor_name) ?? 'Unknown user'} · {TIME_FORMAT.format(new Date(entry.occurred_at))}
                 </Typography>
                 {fields.length > 0 && (
                   <Box component="ul" sx={{ m: 0, mt: 0.5, pl: 3 }}>

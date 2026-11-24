@@ -19,6 +19,13 @@ Branch `feature/v1.1` (from `feature/increment-e`).
   select; projects list and dashboard: department filter; project overview
   shows the department.
 
+## 2. Identity and "(you)"
+- `/api/auth/me` (and the user returned by login and refresh) includes
+  `resource_id`, the person linked to the account, or null.
+- `useYou()` (`frontend/src/auth/useYou.js`) labels names as "Name (you)":
+  project owner and team lead (list, cards, overview), deliverable assignee,
+  people list and person page, allocations, activity log, users list.
+
 ## Decisions made on your behalf
 | Item | Decision | Why |
 | --- | --- | --- |
