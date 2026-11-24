@@ -11,6 +11,8 @@ has passed. A project is at risk when any of these fire:
   or before the start
 - blocked_due_soon: a blocked deliverable is due within 7 days
 - over_allocated_resource: someone allocated to it this week is over capacity
+- forecast_late: the critical-path forecast (common.forecast) ends after the
+  end date, and at least half of the remaining deliverables have estimates
 
 Over budget is a separate flag, not an at-risk signal. Each fired signal
 comes back in risk_reasons with details, so the UI can say why.
@@ -21,7 +23,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Optional
 
-from . import db
+from . import db, forecast
 
 BLOCKED_SOON_DAYS = 7
 SEVERITY_ORDER = {"high": 2, "medium": 1}
@@ -55,7 +57,7 @@ def schedule_slip(project: dict, today: date) -> Optional[dict]:
                         "gap_points": round(gap, 1), "threshold": slip_threshold()}}
 
 
-def evaluate(project_ids: Optional[list[int]] = None,  # pylint: disable=too-many-locals
+def evaluate(project_ids: Optional[list[int]] = None,  # pylint: disable=too-many-locals,too-many-branches
              department_id: Optional[int] = None) -> list[dict]:
     """
     Evaluate projects and return each with is_at_risk, severity and risk_reasons.
@@ -99,6 +101,7 @@ def evaluate(project_ids: Optional[list[int]] = None,  # pylint: disable=too-man
         WHERE a.project_id = ANY(%(ids)s) AND a.start_date <= %(week)s + 6 AND a.end_date >= %(week)s
         ORDER BY r.full_name
         """, {"week": week, "ids": ids}))
+    forecasts = forecast.for_projects(projects, today)
 
     results = []
     for project in projects:
@@ -127,6 +130,14 @@ def evaluate(project_ids: Optional[list[int]] = None,  # pylint: disable=too-man
             reasons.append({"type": "over_allocated_resource", "severity": "medium",
                             "message": f"{', '.join(p['full_name'] for p in people)} over-allocated this week",
                             "details": {"people": people, "week_start": week}})
+        outlook = forecasts[project["id"]]
+        if forecast.is_flagged(outlook):
+            days = outlook["slip_days"]
+            reasons.append({"type": "forecast_late", "severity": "medium",
+                            "message": f"Forecast to finish {days} day{'s' if days != 1 else ''} after its end date",
+                            "details": {"forecast_end": outlook["forecast_end"], "end_date": project["end_date"],
+                                        "slip_days": days, "confidence": outlook["confidence"]["level"],
+                                        "critical_path": outlook["critical_path"]}})
         severity = max((r["severity"] for r in reasons), key=SEVERITY_ORDER.get, default=None)
         results.append({**project, "is_at_risk": bool(reasons), "severity": severity, "risk_reasons": reasons})
     return results

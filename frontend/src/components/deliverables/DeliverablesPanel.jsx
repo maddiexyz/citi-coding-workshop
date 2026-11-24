@@ -12,7 +12,7 @@ import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
 import AddIcon from '@mui/icons-material/Add';
 import useAuth from '../../auth/useAuth';
-import { canDeleteDeliverables, canEditDeliverables, canUpdateDeliverableStatus } from '../../auth/permissions';
+import { canDeleteDeliverables, canEditDeliverables, canUpdateDeliverableProgress } from '../../auth/permissions';
 import { deleteDeliverable, listDeliverables } from '../../services/deliverablesApi';
 import { listResources } from '../../services/resourcesApi';
 import useDebouncedValue from '../../utils/useDebouncedValue';
@@ -84,7 +84,7 @@ export default function DeliverablesPanel({ project, onChanged }) {
     return () => { cancelled = true; };
   }, [project.id, reloadKey]);
 
-  const openDeliverable = (item) => setDialog({ id: item.id, statusOnly: !canEdit && canUpdateDeliverableStatus(user, item) });
+  const openDeliverable = (item) => setDialog({ id: item.id, statusOnly: !canEdit && canUpdateDeliverableProgress(user, item) });
 
   const changed = (saved, verb) => {
     if (verb) setMessage(`${verb} ${saved.title}`);

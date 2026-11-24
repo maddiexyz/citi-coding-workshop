@@ -4,13 +4,16 @@ Projects service: list, read, create, update and delete projects.
 Routes (served at /api/projects; every route needs a Bearer token):
     GET    /             ?status&q&department_id&owner=me&team_lead=me -> {"items": [...]}
     GET    /{id}                               -> project
+    GET    /{id}/forecast                      -> completion forecast (critical path, confidence, SPI)
     POST   /             project fields        -> 201 project
     PUT    /{id}         project fields        -> project
     DELETE /{id}                               -> 204
 
 Project fields: code, name, description, status, start_date, end_date,
 team_lead_id, department_id, budget_planned. Budget figures (actual_spend, remaining,
-burn_pct, over_budget) are computed by the project_details view.
+burn_pct, over_budget) are computed by the project_details view. Each listed
+project also carries forecast_end, forecast_status, forecast_slip_days and
+forecast_confidence, computed at query time by common.forecast.
 
 Who may change what is decided in common.permissions; every change is
 written to the audit log in the same transaction.
@@ -20,7 +23,7 @@ from decimal import Decimal
 
 from psycopg import errors
 
-from common import audit, db
+from common import audit, db, forecast
 from common.auth import me_filter, require_auth
 from common.http import ApiError, Request, json_response, make_handler, parse_id
 from common.permissions import can_change_project, can_create_project, can_delete_project
@@ -105,13 +108,27 @@ def list_projects(request: Request) -> dict:
         {"status": status, "department_id": department_id, "owner": owner, "team_lead": team_lead,
          "search": db.like_pattern(text) if text else None},
     )
-    return json_response(200, {"items": items})
+    forecasts = forecast.for_projects(items, db.today())
+    return json_response(200, {"items": [{**item, **forecast.summary(forecasts[item["id"]])} for item in items]})
 
 
 @require_auth
 def get_project(_request: Request, project_id: str) -> dict:
     """Return one project."""
     return json_response(200, find_project(parse_id(project_id, "Project id")))
+
+
+@require_auth
+def get_forecast(_request: Request, project_id: str) -> dict:
+    """
+    Forecast the project's completion date from its deliverables' estimates,
+    progress and dependencies (critical path method, Mon-Fri calendar).
+    """
+    project = find_project(parse_id(project_id, "Project id"))
+    result = forecast.for_projects([project], db.today())[project["id"]]
+    return json_response(200, {"project_id": project["id"], "project_code": project["code"],
+                               "project_status": project["status"], "at_risk": forecast.is_flagged(result),
+                               **result})
 
 
 def project_row(project_id: int) -> dict:
@@ -213,6 +230,7 @@ handler = make_handler([
     ("GET", "/", list_projects),
     ("POST", "/", create_project),
     ("GET", "/{project_id}", get_project),
+    ("GET", "/{project_id}/forecast", get_forecast),
     ("PUT", "/{project_id}", update_project),
     ("DELETE", "/{project_id}", delete_project),
 ])

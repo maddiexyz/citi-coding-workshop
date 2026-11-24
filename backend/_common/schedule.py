@@ -98,7 +98,7 @@ def _confidence(estimated: int, remaining: int) -> dict:
     return {"level": level, "estimated": estimated, "remaining": remaining}
 
 
-def _spi(items: list, fallback: Optional[int], today: date,
+def _spi(items: list, fallback: Optional[int], today: date,  # pylint: disable=too-many-locals
          project_start: Optional[date], project_end: Optional[date]) -> dict:
     """Earned and planned work (in working days of estimate) and their ratio."""
     earned = planned = 0.0
@@ -148,7 +148,9 @@ def _driving_predecessor(node, predecessors: dict, state: dict):
     return None
 
 
-def compute(deliverables: Iterable[dict], edges: Iterable[tuple],  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+# One pass each way over the graph; splitting it further would only scatter the algorithm
+# pylint: disable-next=too-many-locals,too-many-branches,too-many-statements
+def compute(deliverables: Iterable[dict], edges: Iterable[tuple],
             today: date, project_start: Optional[date] = None, project_end: Optional[date] = None) -> dict:
     """
     Forecast one project.

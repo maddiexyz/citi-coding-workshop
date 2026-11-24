@@ -131,6 +131,6 @@ export function canManageDepartments(user) {
  * @param {{assignee_resource_id?: number|null}} deliverable
  * @returns {boolean} True if the user is the deliverable's assignee and so may change its status (only).
  */
-export function canUpdateDeliverableStatus(user, deliverable) {
+export function canUpdateDeliverableProgress(user, deliverable) {
   return user?.resource_id != null && deliverable.assignee_resource_id === user.resource_id;
 }
