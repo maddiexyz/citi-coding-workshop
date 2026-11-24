@@ -16,6 +16,15 @@ limitations: README → *Demo data (any deployment, through the API)*.
 - `tests/seed/test_spec.py`: 9 generator tests.
 - `.gitignore`: `tests/seed/.demo-credentials`.
 
+Loader safeguards added after the first local runs:
+- Only `http://` or `https://` base URLs are accepted, which is what bandit's
+  `nosec B310` on `urlopen` relies on.
+- A non-JSON response, such as a proxy or CloudFront error page, is reported
+  in the error message instead of crashing the run.
+- Sign-in calls aren't counted as writes, so a second run reports 0 writes.
+- Rupee amounts use Indian grouping (₹18,00,000), as the app does.
+- Any setup error, such as a bad URL, ends with a ✗ message, not a traceback.
+
 ## Verified locally (http://localhost:3001)
 Signed in as a temporary local admin (`accept-seeder@acme.test`, created and
 removed in the local database for the check), never the owner's account.
@@ -28,6 +37,10 @@ removed in the local database for the check), never the owner's account.
 | second run | 0 created, every entity reported as already there, no writes |
 | API checks | Ananya Iyer `projects?owner=me` → ACME-APP, CRM, KYC, SUP; Arjun Nair `team_lead=me` → APP, PAY, SEC, WMS; viewer POST /projects → 403; activity log entries by 8 different people (3 PMs, 2 team leads, 2 viewers, the admin) |
 | `--reset` | 13 projects, 36 people, 7 accounts and 4 departments removed. Engineering, Finance and Operations kept (the `DEMO-*` data uses them). The database matches the snapshot taken before seeding: existing admin, `DEMO-*`, other projects and counts unchanged |
+
+After the safeguards above I seeded and reset once more: same counts, all
+three dashboard checks ✓, and the database matched a fresh pre-seed snapshot
+exactly.
 
 Lint: flake8 and pylint 10.00 on `tests/seed`; bandit clean on the seeder
 (the test file is not scanned, like `backend/tests`).
@@ -44,6 +57,24 @@ Lint: flake8 and pylint 10.00 on `tests/seed`; bandit clean on the seeder
 | Over-budget checked through the projects list, not `/dashboard/at-risk` | The at-risk list leaves out completed projects (ACME-ANL is completed and over budget) |
 | Generator tests in `tests/seed`, run with the backend venv | They need no database; keeps the seeder self-contained |
 
-## Not done here
-- The cloud run was done by the owner on 2026-11-25: everything created, all three
-  dashboard checks ✓. Results are in `changes/phase1_1.md` → *Cloud demo data*.
+## Cloud (https://detyiwrgyf771.cloudfront.net, 2026-11-25)
+| Check | Run by | Result |
+| --- | --- | --- |
+| `tests/seed/run.sh <site>` | owner | Everything created (7/7 departments new), 438 writes in 130 s. Dashboard checks ✓ at-risk 5/5, over-budget 2/2, over-allocated 3/3; the dashboard totals equal the seeded counts |
+| `tests/acceptance/cloud_auth_check.sh <site>` | Claude, as the seeded viewer (password piped from `.demo-credentials`, never printed) | 11 passed, 0 failed: cookie flags, rotation, old token and post-logout refresh refused |
+| `tests/load/run.sh cloud <site>` | Claude, as the seeded viewer | 6,340 requests, all 200, 0 failed virtual users; p95 55 ms, p99 518 ms (Lambda cold starts during the ramp) |
+
+Full numbers are in `changes/phase1_1.md` (*Cloud demo data* and *Freeze (v1.0)*).
+
+## Other changes on this branch
+- **README:**
+  - A new "Demo data (any deployment, through the API)" section.
+  - A row in the test table for the generator tests.
+  - The Cypress row corrected from 9 specs and 19 tests to 12 and 27, the v1.1 numbers.
+  - The repository map now lists the seeder under `tests/`.
+- **`docs/acme-project-tracking.md`:** a pointer to the seeder in the deploy section.
+- **`changes/phase1_1.md`:** the "Cloud demo data" section, and the cloud check results in place of the freeze's "Not run" note.
+- **`docs/COMPLIANCE.md`:** load testing goes from 🟡 to ✅ with the cloud numbers; the Auth row cites the 11/11 cloud check.
+
+These record-keeping updates live on this branch only; `main` (the v1.0
+freeze) is unchanged and still says the cloud checks were not run.
