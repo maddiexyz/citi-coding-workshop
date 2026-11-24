@@ -56,8 +56,17 @@ python3 -m venv backend/.venv
 backend/.venv/bin/pip install -r backend/tests/requirements-dev.txt
 backend/.venv/bin/pytest backend/tests
 
+# Coverage (fails under 80%)
+backend/.venv/bin/pytest backend/tests --cov --cov-config=backend/.coveragerc
+(cd frontend && npm run coverage)
+
 # Frontend
 cd frontend && npm test
+
+# End to end (Cypress against a production build and the running local stack)
+(cd frontend && npm run e2e)
+
+# Load test: tests/load/run.sh local (smoke) or cloud (asks for an account)
 
 # Acceptance checks with curl against the running local stack
 # (creates throwaway accept-*@acme.test users and removes them afterwards)

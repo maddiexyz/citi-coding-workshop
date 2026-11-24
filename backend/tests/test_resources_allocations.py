@@ -229,3 +229,21 @@ def test_deliverable_assignee(resources_service, deliverables_service, users, pr
     assert (status, list(body["error"]["details"])) == (400, ["assignee_resource_id"])
     found = call(deliverables_service, "GET", "/", token=token, query={"assignee": str(pat["id"])})[1]["items"]
     assert [d["title"] for d in found] == ["Spec"]
+
+
+def test_allocation_error_paths(resources_service, allocations_service, users, project):
+    resource = make_resource(resources_service, users)
+    token = users["admin"]["token"]
+    status, body = allocate(allocations_service, token, 999999, resource["id"], 5)
+    assert (status, body["error"]["details"]) == (400, {"project_id": "Project not found"})
+    assert call(allocations_service, "GET", "/999999", token=token)[0] == 404
+    assert call(allocations_service, "PUT", "/999999", token=token, body={})[0] == 404
+
+    first = allocate(allocations_service, token, project["id"], resource["id"], 5)[1]
+    later = allocate(allocations_service, token, project["id"], resource["id"], 5,
+                     start=MONDAY + timedelta(weeks=2))[1]
+    assert call(allocations_service, "GET", f"/{first['id']}", token=users["viewer"]["token"])[0] == 200
+    status, body = call(allocations_service, "PUT", f"/{later['id']}", token=token, body={   # moved onto the first
+        "resource_id": resource["id"], "hours_per_week": 5,
+        "start_date": first["start_date"], "end_date": first["end_date"]})
+    assert (status, body["error"]["code"]) == (409, "allocation_overlap")

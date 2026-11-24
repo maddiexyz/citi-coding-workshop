@@ -1,113 +1,138 @@
-# Coding Workshop
+# ACME Project Tracker
 
-The goal of this coding workshop is to enable and assess the hands-on skills
-of participants through development of a practical technical solution that
-solves a theoretical business problem.
+A project-tracking platform for ACME Inc.: projects, deliverables and their
+dependencies, people and their allocations, budgets, and a dashboard that
+explains which projects are at risk, with role-based access control.
 
-## Getting Started
+Built for the coding workshop (Full Stack track). The workshop's own guides
+are in [docs/README.md](./docs/README.md); the rubric is
+[docs/full-stack.md](./docs/full-stack.md).
 
-Navigate to [Coding Workshop - Main Guide](./docs/README.md) to get started.
+## What it answers
 
-## Coding Workshop Example
+| Business question | Where |
+| --- | --- |
+| What is the current status of each active project? | Projects list (status, progress, burn); Dashboard |
+| Which projects are at risk of missing their deadlines? | Dashboard → *Projects needing attention*, with the reasons |
+| How are resources allocated across projects? | Project → *Allocations*; People → a person's next 8 weeks |
+| What are the key deliverables and their completion status? | Project → *Deliverables* (status, due date, blocked, overdue) and progress bar |
+| Which team members are over-allocated across multiple projects? | People (*over-allocated this week* filter); Dashboard; warning when saving an allocation |
+| What is the dependency chain between deliverables? | A deliverable's dialog shows *depends on → it → needed by*; cycles are rejected |
+| How much budget has been consumed versus planned? | Project → *Budget* (planned, spent, remaining, burn %, by category); burn in the projects list |
 
-Coding workshop organizer(s) will provide instructions to follow by email. Here
-below is a real example of requirements and expectations for participant(s):
+## Architecture
 
-### Requirements: Business Problem
+```mermaid
+graph LR
+    Browser["Browser<br/>React + MUI"] --> CF["CloudFront<br/>(local: Vite :3000 / proxy :3001)"]
+    CF -->|/| S3["S3 website bucket"]
+    CF -->|/api/&lt;service&gt;| L["Lambda per service<br/>auth · projects · deliverables · resources<br/>allocations · budget · audit · users · dashboard"]
+    L --> DB[("Aurora PostgreSQL<br/>(local: PostgreSQL :5432)")]
+    M["Private migrate Lambda<br/>(no URL)"] --> DB
+```
 
-Our company ACME Inc. is going through a massive organizational transformation
-to become a more data-driven organization. Information about teams structure
-and performance is currently scattered across multiple systems, making it
-difficult to get a comprehensive view of team dynamics and achievements.
+- **Backend:** Python 3.13 Lambdas. Each folder under `backend/` with a
+  `requirements.txt` is a service at `/api/<folder>`; shared code lives in
+  `backend/_common` (routing and JSON errors, DB, JWT and sessions,
+  permissions, validation, audit, risk). Folders starting with `_` are not
+  services.
+- **Database:** PostgreSQL. Migrations in `backend/_db/migrations`, applied by
+  `bin/migrate.sh` locally and by the private `_migrate` Lambda in AWS.
+  Derived values (blocked, overdue, progress, over-allocation, burn, at-risk)
+  are computed by views and queries, never stored.
+- **Frontend:** React 19, Material UI, react-responsive, react-router; every
+  page is loaded on demand.
+- **Infrastructure:** Terraform (`infra/`), deployed with `bin/deploy-*.sh`.
 
-We are struggling to answer simple questions like:
+Details, data model and trade-offs: [docs/acme-project-tracking.md](./docs/acme-project-tracking.md).
 
-* Who are the members of each team?
-* Where are the teams located?
-* What are the key achievements of each team on a monthly basis?
-* How many teams have team leader not co-located with team members?
-* How many teams have team leader as a non-direct staff?
-* How many teams have non-direct staff to employees ratio above 20%?
-* How many teams are reporting to an organization leader?
+## Run it locally
 
-### Requirements: Technical Solution
+Prerequisites: the workshop VDI set up as in [docs/validation.md](./docs/validation.md)
+(`~/.bashrc` exports `AWS_REGION`, `EVENT_ID`, `PARTICIPANT_ID`,
+`PARTICIPANT_CODE` and the LocalStack token), Docker, Node 22, Python 3.13 and `psql`.
 
-As part of this transformation, we are looking to build a centralized team
-management tool that will allow us to track team members, team locations,
-monthly team achievements, as well as individual-level and team-level metadata.
-Initial focus is to provide a self-service capability without any integrations
-with other tools such as Employee Directory, Project Tracking, or Performance
-Management.
+```sh
+source ~/.bashrc
+export ADMIN_EMAIL=admin@acme.test                     # first admin, created once
+read -rsp "Admin password: " ADMIN_PASSWORD && echo && export ADMIN_PASSWORD
+./bin/start-dev.sh                                     # keeps running; open http://localhost:3000
+```
 
-The technical solution involves developing a stand-alone web application using
-modern technologies. The application will have the following features:
+`start-dev.sh` starts PostgreSQL and LocalStack, applies the migrations, seeds
+the admin, deploys every Lambda to LocalStack and starts the API proxy (:3001)
+and the React dev server (:3000). It does not exit; stop it with Ctrl+C.
+Sign in as the admin and create other users on the *Users* page.
 
-* User authentication and authorization
-* Role-based access control
-* CRUD operations for individuals, teams, achievements and metadata
-* Search and filter functionality
-* Responsive design for mobile and desktop usage
+## Deploy to AWS
 
-### Requirements: Technology Stack
+```sh
+export ADMIN_EMAIL=you@acme.example
+read -rsp "Admin password: " ADMIN_PASSWORD && echo && export ADMIN_PASSWORD
+./bin/deploy-backend.sh      # Lambdas, CloudFront, migrations + admin seed
+./bin/deploy-frontend.sh     # React build → S3 (stale files removed) → CloudFront
+```
 
-The following technologies are required to build the application:
+Both scripts are safe to repeat: a second `deploy-backend.sh` reports *No
+changes*, no migrations and an existing admin. Never run
+`bin/cleanup-environment.sh` on the shared workshop stack.
 
-* Frontend: HTML, CSS, React.js with React Responsive and Material UI Components
-* Backend: Python
-* Database: PostgreSQL
+## Test
 
-The following technologies are good to know, as they are used to manage and
-deploy code:
+| What | Command | Result |
+| --- | --- | --- |
+| Backend unit + integration (real PostgreSQL), coverage gate 80% | `backend/.venv/bin/pytest backend/tests --cov --cov-config=backend/.coveragerc` | 163 passed, **95%** (every service ≥ 92%) |
+| Frontend components, pages and API clients, coverage gate 80% | `cd frontend && npm run coverage` | 191 passed, **92%** lines, 90% statements, 86% branches, 85% functions |
+| End-to-end (Cypress, production build, local stack) incl. axe WCAG 2 A/AA | `cd frontend && npm run e2e` | 9 specs, 19 tests passed |
+| API acceptance (curl, local stack) | `tests/acceptance/increment_{a,b,c,d}.sh` | 20 + 15 + 18 + 19 checks passed |
+| Sign-in, refresh cookie, sign-out on the deployed site | `tests/acceptance/cloud_auth_check.sh` | asks for an account |
+| Load (Artillery) | `tests/load/run.sh cloud` (or `local` for a smoke test) | see [docs/COMPLIANCE.md](./docs/COMPLIANCE.md) |
+| Lint and security | `cd backend && .venv/bin/flake8 . && .venv/bin/bandit -r _common _migrate */function.py`; `cd frontend && npm run lint` | clean |
 
-* Version Control: Git, GitHub
-* Infrastructure: Terraform
-* Deployment Mode: Shell Scripts
-* Deployment Target: AWS Serverless (e.g. S3, CloudFront, Lambda, RDS)
+One-time setup for the backend tests:
+`python3 -m venv backend/.venv && backend/.venv/bin/pip install -r backend/tests/requirements-dev.txt`.
 
-### Expectations: Value-Based Outcomes
+Critical paths covered end to end: sign in / stay signed in / refresh / sign
+out / rate limit; project CRUD and roles; deliverables and the dependency
+cycle error; over-allocation warning; budget, burn and activity; dashboard
+reasons; user administration; mobile layout; accessibility of every page.
 
-By the end of the workshop, participants will have developed a functional
-web application that meets the requirements outlined above. The application
-will be deployed to a cloud environment and accessible via a web browser.
-Participants will also gain hands-on experience with modern web development
-technologies and best practices.
+## Roles
 
-## Contributing
+| Role | Can |
+| --- | --- |
+| Admin | Everything, including users and roles, people, and deleting spend |
+| Project manager | Create projects; manage their own projects' team lead, deliverables, allocations and budget; delete their projects while they have no spend |
+| Team lead | Read everything; create and edit (not delete) deliverables and dependencies in projects they lead |
+| Viewer | Read everything except spend line items, change history and the user list |
 
-See the [CONTRIBUTING](./CONTRIBUTING.md) resource for more details.
+Every request is checked by the backend (401 / 403); the UI only hides what a
+role can't do. Full matrix: [docs/acme-project-tracking.md](./docs/acme-project-tracking.md#roles).
+
+## Decisions and known gaps
+
+Decisions, assumptions and their reasons are in [docs/PLAN.md](./docs/PLAN.md)
+and the per-increment notes in [changes/](./changes/). Known gaps:
+
+- No offline/PWA support, real-time updates or AI features (beyond this brief).
+- One currency, display only; no audit-log retention policy.
+- Refresh tokens are rotated but reuse of an old one doesn't revoke the session family.
+- Each concurrent Lambda holds its own database connection; at high
+  concurrency an RDS Proxy would be needed (see the load test notes).
+- Over-allocation counts partial weeks in full.
+
+## Repository map
+
+| Path | Contents |
+| --- | --- |
+| `backend/` | Lambda services, `_common` shared code, `_db` migrations, `_migrate`, tests |
+| `frontend/` | React app (`src/`), Cypress suite (`cypress/`) |
+| `infra/` | Terraform |
+| `bin/` | Dev, migration and deploy scripts |
+| `tests/` | curl acceptance scripts and the Artillery load test |
+| `docs/` | Workshop guides, project docs, plan, compliance |
+| `changes/` | What changed in each increment |
 
 ## License
 
-This library is licensed under the MIT-0 License.
-See the [LICENSE](./LICENSE) resource for more details.
-
-## Roadmap
-
-See the
-[open issues](https://github.com/citi/coding-workshop-participant/issues)
-for a list of proposed roadmap features (and known issues).
-
-## Security
-
-See the
-[Security Issue Notifications](./CONTRIBUTING.md#security-issue-notifications)
-resource for more details.
-
-## Authors
-
-The following people have contributed to this workshop:
-
-* Colin Heilman - [@heilmancs](https://github.com/heilmancs)
-* Eugene Istrati - [@eistrati](https://github.com/eistrati)
-* Isaiah Cornelius Smith - [@corneliusmith](https://github.com/corneliusmith)
-* Juan Arevalo - [@jparevalo27](https://github.com/jparevalo27)
-* Michael Annucci - [@michael-annucci](https://github.com/michael-annucci)
-
-## Feedback
-
-We'd love to hear your feedback! Please:
-
-* ⭐ Star the repository if you find it helpful
-* 🐛 Report issues on GitHub
-* 💡 Suggest improvements
-* 📝 Share your experience
+See [LICENSE](./LICENSE). Contributing to the workshop template: [CONTRIBUTING.md](./CONTRIBUTING.md).
