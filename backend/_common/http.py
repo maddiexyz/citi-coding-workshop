@@ -11,8 +11,10 @@ same JSON shape for every service::
 import base64
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any, Callable, Optional
 
 logger = logging.getLogger()
@@ -101,9 +103,11 @@ def parse_request(event: dict) -> Request:
 
 
 def _json_default(value: Any) -> str:
-    """Serialize dates and timestamps as ISO 8601 strings."""
+    """Serialize dates as ISO 8601 and decimals as exact strings (never floats)."""
     if isinstance(value, (date, datetime)):
         return value.isoformat()
+    if isinstance(value, Decimal):
+        return str(value)
     raise TypeError(f"Cannot serialize {type(value).__name__}")
 
 
@@ -130,6 +134,36 @@ def error_response(error: ApiError) -> dict:
     if error.details:
         payload["details"] = error.details
     return json_response(error.status, {"error": payload})
+
+
+# ASCII digits only: str.isdigit() also accepts characters such as "²"
+_ID_PATTERN = re.compile(r"[1-9][0-9]{0,17}")
+
+
+def parse_id(raw_id: str, label: str = "Id") -> int:
+    """
+    Convert a path id to an int.
+
+    Raises:
+        ApiError: 400 unless the value is a positive whole number (ASCII digits).
+    """
+    if not isinstance(raw_id, str) or not _ID_PATTERN.fullmatch(raw_id):
+        raise ApiError(400, "invalid_id", f"{label} must be a positive number")
+    return int(raw_id)
+
+
+def parse_bool(name: str, raw: Optional[str]) -> Optional[bool]:
+    """
+    Parse an optional true/false query parameter (missing or empty → None).
+
+    Raises:
+        ApiError: 400 for any other value.
+    """
+    if raw in (None, ""):
+        return None
+    if raw in ("true", "false"):
+        return raw == "true"
+    raise ApiError(400, "validation_error", "Invalid filter", {name: "Must be true or false"})
 
 
 Route = tuple[str, str, Callable[..., dict]]

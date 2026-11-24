@@ -90,6 +90,23 @@ class Validator:
         self.clean[name] = parsed
         return parsed
 
+    def integer(self, name: str, *, required: bool = False, minimum: int = 1) -> Optional[int]:
+        """Validate a whole number (JSON number, not a string or boolean), e.g. a referenced id."""
+        value = self.data.get(name)
+        if value is None:
+            if required:
+                self.add_error(name, REQUIRED)
+            self.clean[name] = None
+            return None
+        if isinstance(value, bool) or not isinstance(value, int):
+            self.add_error(name, "Must be a whole number")
+            return None
+        if value < minimum:
+            self.add_error(name, f"Must be at least {minimum}")
+            return None
+        self.clean[name] = value
+        return value
+
     def raise_if_errors(self) -> None:
         """Raise a 400 ApiError listing every invalid field, if there are any."""
         if self.errors:

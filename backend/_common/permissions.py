@@ -1,10 +1,16 @@
 """
 Role-based permission rules, kept in one place so every service agrees.
 
-Increment 1 rules for projects:
+Projects:
 - admin: everything
 - project_manager: create projects; edit or delete only projects they own
+  (including setting the project's team lead)
 - team_lead, viewer: read-only
+
+Deliverables and their dependencies (everyone may read):
+- admin and the owning project manager: create, edit, delete
+- the project's assigned team lead (projects.team_lead_id): create and edit
+  deliverables and manage dependencies, but not delete deliverables
 """
 
 from typing import Any
@@ -32,3 +38,23 @@ def can_change_project(user: Any, project: dict) -> bool:
     if user.role == ADMIN:
         return True
     return user.role == PROJECT_MANAGER and project["owner_id"] == user.id
+
+
+def owns_project(user: Any, project: dict) -> bool:
+    """Return True if the user is admin or the project manager who owns the project."""
+    return can_change_project(user, project)
+
+
+def is_assigned_team_lead(user: Any, project: dict) -> bool:
+    """Return True if the user is the team lead assigned to the project."""
+    return user.role == TEAM_LEAD and project.get("team_lead_id") == user.id
+
+
+def can_edit_deliverables(user: Any, project: dict) -> bool:
+    """Return True if the user may create/edit deliverables and dependencies in the project."""
+    return owns_project(user, project) or is_assigned_team_lead(user, project)
+
+
+def can_delete_deliverables(user: Any, project: dict) -> bool:
+    """Return True if the user may delete deliverables in the project (not the team lead)."""
+    return owns_project(user, project)

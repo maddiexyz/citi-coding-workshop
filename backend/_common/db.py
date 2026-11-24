@@ -6,7 +6,8 @@ All queries take parameters separately from the SQL text (psycopg ``%s`` /
 """
 
 import os
-from typing import Any, Optional
+from contextlib import contextmanager
+from typing import Any, Iterator, Optional
 
 import psycopg
 from psycopg.conninfo import make_conninfo
@@ -30,6 +31,12 @@ def _connection_info() -> str:
         # AWS Aurora requires TLS; the local database does not offer it
         sslmode="disable" if is_local else "require",
     )
+
+
+def like_pattern(text: str) -> str:
+    """Turn search text into an ILIKE pattern that matches it anywhere, treating % and _ literally."""
+    escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
 
 
 def get_connection() -> psycopg.Connection:
@@ -69,3 +76,25 @@ def fetch_all(sql: str, params: Any = None) -> list[dict]:
 def execute(sql: str, params: Any = None) -> int:
     """Run a statement and return the number of affected rows."""
     return _run(sql, params).rowcount
+
+
+@contextmanager
+def transaction() -> Iterator[psycopg.Connection]:
+    """
+    Run the enclosed statements as one transaction on the shared connection.
+
+    Every fetch_one/fetch_all/execute inside the block joins it; it commits
+    when the block ends and rolls back if it raises::
+
+        with db.transaction():
+            db.execute("SELECT ... FOR UPDATE", ...)
+            db.execute("INSERT ...", ...)
+    """
+    global _connection  # pylint: disable=global-statement
+    conn = get_connection()
+    try:
+        with conn.transaction():
+            yield conn
+    except psycopg.OperationalError:
+        _connection = None
+        raise

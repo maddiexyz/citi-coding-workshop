@@ -13,6 +13,7 @@ from typing import Callable
 
 import jwt
 
+from . import db
 from .http import ApiError, Request
 
 ALGORITHM = "HS256"
@@ -77,14 +78,23 @@ def authenticate(request: Request) -> CurrentUser:
     """
     Read and verify the ``Authorization: Bearer <token>`` header.
 
+    The user is re-read from the database on every request, so a deleted or
+    deactivated account is refused at once and role changes apply immediately
+    (the role in the token is not trusted on its own).
+
     Raises:
-        ApiError: 401 if the header is missing or the token is invalid.
+        ApiError: 401 if the header is missing, the token is invalid, or the
+            account no longer exists or is inactive.
     """
     header = request.headers.get("authorization", "")
     scheme, _, token = header.partition(" ")
     if scheme.lower() != "bearer" or not token:
         raise ApiError(401, "unauthorized", "Authentication required")
-    return decode_token(token.strip())
+    claims = decode_token(token.strip())
+    row = db.fetch_one("SELECT id, role FROM users WHERE id = %s AND is_active", (claims.id,))
+    if not row:
+        raise ApiError(401, "account_inactive", "This account no longer exists or is inactive")
+    return CurrentUser(id=row["id"], role=str(row["role"]))
 
 
 def require_auth(func: Callable[..., dict]) -> Callable[..., dict]:
