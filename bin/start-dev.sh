@@ -339,7 +339,11 @@ for req in "$PROJECT_ROOT"/backend/*/requirements.txt; do
         continue
     fi
     echo -e "  Installing pip requirements for $(basename "$svc_dir")..."
-    pip install --quiet --target="$svc_dir" -r "$req" 2>/dev/null || true
+    # Install wheels matching the Lambda runtime (python3.13, x86_64), not the local Python
+    pip install --quiet --target="$svc_dir" \
+      --python-version 3.13 --platform manylinux2014_x86_64 \
+      --implementation cp --only-binary=:all: \
+      -r "$req" || { echo "  ✗ pip install failed for $(basename "$svc_dir")"; exit 1; }
     echo "$REQS_HASH" > "$HASH_FILE"
 done
 
