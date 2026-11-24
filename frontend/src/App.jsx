@@ -1,14 +1,26 @@
+import { Suspense, lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
 import RequireAuth from './auth/RequireAuth';
 import AppLayout from './components/AppLayout';
-import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
-import ProjectDetailPage from './pages/ProjectDetailPage';
-import ProjectFormPage from './pages/ProjectFormPage';
-import ProjectsPage from './pages/ProjectsPage';
-import ResourceDetailPage from './pages/ResourceDetailPage';
-import ResourcesPage from './pages/ResourcesPage';
-import UsersPage from './pages/UsersPage';
+
+// Each page is its own chunk, loaded when first visited, so the first
+// download stays small (the login page is in the main bundle).
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage'));
+const ProjectFormPage = lazy(() => import('./pages/ProjectFormPage'));
+const ProjectsPage = lazy(() => import('./pages/ProjectsPage'));
+const ResourceDetailPage = lazy(() => import('./pages/ResourceDetailPage'));
+const ResourcesPage = lazy(() => import('./pages/ResourcesPage'));
+const UsersPage = lazy(() => import('./pages/UsersPage'));
+
+const pageLoading = (
+  <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+    <CircularProgress aria-label="Loading page" />
+  </Box>
+);
 
 /**
  * Wrap a page so it needs a signed-in user and gets the app frame.
@@ -17,7 +29,7 @@ import UsersPage from './pages/UsersPage';
 function protectedPage(page) {
   return (
     <RequireAuth>
-      <AppLayout>{page}</AppLayout>
+      <AppLayout><Suspense fallback={pageLoading}>{page}</Suspense></AppLayout>
     </RequireAuth>
   );
 }
