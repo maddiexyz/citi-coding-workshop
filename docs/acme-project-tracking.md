@@ -46,6 +46,11 @@ on your machine and only the hash is sent in the invoke payload, so it is not
 stored in Terraform state, Lambda settings or logs. Running it again is safe:
 applied migrations are skipped and an existing admin is never overwritten.
 
+To fill a deployment with demo data, run `tests/seed/run.sh <site-url>`
+(`--dry-run` first, `--reset` to remove it). It works through the public API
+as the admin and the seeded users, so no AWS credentials or database access
+are needed (README → *Demo data*; decisions in `changes/seed_data.md`).
+
 The API routes use their own CloudFront cache policy (`infra/cloudfront.tf`)
 because CloudFront only forwards the `Authorization` header when it is part of
 the cache key. Nothing is cached: the default TTL is 0 and the Lambdas send no

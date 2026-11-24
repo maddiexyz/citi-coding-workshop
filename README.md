@@ -89,6 +89,68 @@ today, so the demo always shows the same situations.
 | Dependency chain | any | DEMO-DATA → Deliverables → *Chain* | Ingest pipeline → Data model → Executive dashboards, with the blocked ones highlighted |
 | Budget consumed vs planned | `asha.pm` | DEMO-OPS → Budget | ₹6,25,000 spent of ₹5,00,000 planned: over budget, with spend by category |
 
+## Demo data (any deployment, through the API)
+
+`tests/seed/run.sh` fills a running deployment (the cloud site or the local
+proxy) with a realistic ACME India dataset, using only the public API: no AWS
+credentials, no database access.
+
+```sh
+tests/seed/run.sh https://<your-site>.cloudfront.net --dry-run   # the plan and counts; sends nothing
+tests/seed/run.sh https://<your-site>.cloudfront.net             # asks for an admin email and password
+tests/seed/run.sh https://<your-site>.cloudfront.net --reset     # removes only the seeded data
+```
+
+The admin password is read with a hidden prompt and kept in memory only
+(`SEED_ADMIN_EMAIL` skips the email question). A failed sign-in is never
+retried: the run stops and says why, so it can't trip the rate limit.
+
+**What gets created** (the same on every run: fixed random seed, dates relative to today):
+
+| Entity | Count | Notes |
+| --- | --- | --- |
+| Departments | 7 | Engineering, Finance, Operations, Sales, Human Resources, Data & Analytics, Customer Support |
+| People | 36 | Indian names, job titles, mostly 40 h a week, a few part-time; one goes on leave (inactive) |
+| Accounts | 7 | 3 project managers, 2 team leads, 2 viewers (`firstname.lastname@acme.example`), linked to their people |
+| Projects | 13 | `ACME-*`, owned by the seeded PMs, budgets in ₹ (two without), one completed, one cancelled, one planned |
+| Deliverables | 154 | With assignees and 62 dependencies (no cycles) |
+| Allocations | 27 | Three people over capacity this week |
+| Spend entries | 50 | Across labour, software, hardware, travel and other |
+
+Every step runs as the user who would really do it: the admin creates
+departments, accounts and people; each PM signs in and creates their own
+projects (the owner comes from the token), deliverables, dependencies,
+allocations and spend; assignees and team leads then move their deliverables
+on, so the activity log shows who did what; finally the admin deactivates a
+person. Sessions are reused and refreshed with the refresh cookie.
+
+Afterwards the dashboard shows these seeded projects (on top of anything
+already there): **5 at risk**: ACME-PAY late, ACME-DWH schedule slip and
+overdue work, ACME-APP a blocked deliverable due in 3 days, ACME-WMS and
+ACME-SUP an over-allocated person. It also shows **2 over budget** (ACME-HRP,
+and the completed ACME-ANL) and **3 over-allocated people** (Aditya Rao, Suresh
+Babu, Farhan Qureshi). CRM, LOG and TRN are on track; SEC and LOG have no
+budget. The run ends by checking those numbers against the live dashboard.
+
+Demo accounts: one per role (Ananya Iyer, PM; Arjun Nair, team lead; Vikram
+Singh, viewer) are written with their generated passwords to
+`tests/seed/.demo-credentials` (mode 600, gitignored). The other accounts get
+random passwords that are never shown; an admin can reset them on the Users page.
+
+Behaviour: one request at a time with a short pause after each write
+(`--delay`, default 0.2 s), backoff on 429 and 5xx. Anything that already
+exists (matched on project codes, emails and names) is skipped, so a second
+run writes nothing. Any unexpected 400 or 403 stops the run with the step,
+the user and the response. `--reset` deletes, as the admin, the `ACME-*`
+projects (with their deliverables, allocations and spend), then the seeded
+people, accounts and the departments nothing else uses.
+
+Limitations:
+- The API can't backdate records, so every audit entry and "created" date carries the seeding date.
+- The data is a snapshot relative to the day it was seeded: as days pass, projects drift (a deliverable due in 3 days becomes overdue). `--reset` and seed again to get the intended mix back.
+- If a seeded account's password is unknown (seeded from another machine), the admin sets a new random one before acting as that user.
+- A department with a seeded name that existed before is reused, and kept by `--reset` while other data uses it.
+
 ## Deploy to AWS
 
 ```sh
@@ -108,11 +170,12 @@ changes*, no migrations and an existing admin. Never run
 | --- | --- | --- |
 | Backend unit + integration (real PostgreSQL), coverage gate 80% | `backend/.venv/bin/pytest backend/tests --cov --cov-config=backend/.coveragerc` | 193 passed, **95%** |
 | Frontend components, pages and API clients, coverage gate 80% | `cd frontend && npm run coverage` | 239 passed, **93%** lines, 91% statements, 86% branches, 85% functions |
-| End-to-end (Cypress, production build, local stack) incl. axe WCAG 2 A/AA | `cd frontend && npm run e2e` | 9 specs, 19 tests passed |
+| End-to-end (Cypress, production build, local stack) incl. axe WCAG 2 A/AA | `cd frontend && npm run e2e` | 12 specs, 27 tests passed |
 | API acceptance (curl, local stack) | `tests/acceptance/increment_{a,b,c,d}.sh` | 20 + 15 + 18 + 19 checks passed |
 | Sign-in, refresh cookie, sign-out on the deployed site | `tests/acceptance/cloud_auth_check.sh` | asks for an account |
 | Load (Artillery) | `tests/load/run.sh local` (smoke) / `cloud` (asks for an account) | local: 548 requests, all 200, p95 36 ms |
 | v1.1 API acceptance | `tests/acceptance/v1_1.sh` | 26 checks passed |
+| Demo data generator (deterministic, no cycles, owners, mix of states) | `backend/.venv/bin/pytest tests/seed` | 9 passed |
 | Lint and security | `cd backend && .venv/bin/flake8 . && .venv/bin/bandit -r _common _migrate */function.py`; `cd frontend && npm run lint` | clean |
 
 One-time setup for the backend tests:
@@ -159,7 +222,7 @@ and the per-increment notes in [changes/](./changes/). Known gaps:
 | `frontend/` | React app (`src/`), Cypress suite (`cypress/`) |
 | `infra/` | Terraform |
 | `bin/` | Dev, migration and deploy scripts |
-| `tests/` | curl acceptance scripts and the Artillery load test |
+| `tests/` | curl acceptance scripts, the Artillery load test, the API demo-data seeder |
 | `docs/` | Workshop guides, project docs, plan, compliance |
 | `changes/` | What changed in each increment |
 
