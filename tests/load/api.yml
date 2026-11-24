@@ -1,0 +1,92 @@
+# Load test of the main read paths, plus a small share of real sign-ins.
+# Run with tests/load/run.sh (local or cloud); it supplies the target and an
+# account through environment variables.
+#
+# Two profiles (run.sh picks one with -e):
+#   cloud: kept modest because the AWS account is shared by every participant:
+#          30 s warm-up from 2 to 10 new virtual users per second, 60 s at 10/s,
+#          30 s at 20/s. Each user makes 4-5 requests (up to ~100 requests/s).
+#   local: a 60-second smoke test at 1-3 users/s. LocalStack runs each
+#          concurrent Lambda in its own container with its own database
+#          connection, so it is not a performance environment.
+config:
+  target: "{{ $env.LOAD_TARGET }}"
+  environments:
+    cloud:
+      phases:
+        - name: warm-up
+          duration: 30
+          arrivalRate: 2
+          rampTo: 10
+        - name: steady
+          duration: 60
+          arrivalRate: 10
+        - name: peak
+          duration: 30
+          arrivalRate: 20
+    local:
+      phases:
+        - name: smoke
+          duration: 60
+          arrivalRate: 1
+          rampTo: 3
+  http:
+    timeout: 15
+  plugins:
+    ensure: {}
+    metrics-by-endpoint:
+      useOnlyRequestNames: true
+  ensure:
+    thresholds:
+      - http.response_time.p95: 1500
+    conditions:
+      - expression: "vusers.failed == 0"
+  variables:
+    email: "{{ $env.LOAD_EMAIL }}"
+    password: "{{ $env.LOAD_PASSWORD }}"
+
+# Sign in once and share the token, so the test measures reads, not bcrypt
+before:
+  flow:
+    - post:
+        url: /api/auth/login
+        json: { email: "{{ email }}", password: "{{ password }}" }
+        capture:
+          - json: $.token
+            as: token
+
+scenarios:
+  - name: browse the portfolio
+    weight: 9
+    flow:
+      - get:
+          name: dashboard summary
+          url: /api/dashboard/summary
+          headers: { Authorization: "Bearer {{ token }}" }
+      - get:
+          name: at-risk projects
+          url: /api/dashboard/at-risk
+          headers: { Authorization: "Bearer {{ token }}" }
+      - get:
+          name: projects list
+          url: /api/projects?status=active
+          headers: { Authorization: "Bearer {{ token }}" }
+          capture:
+            - json: $.items[0].id
+              as: projectId
+              strict: false
+      - get:
+          name: project deliverables
+          url: /api/deliverables?project_id={{ projectId }}
+          headers: { Authorization: "Bearer {{ token }}" }
+      - get:
+          name: people this week
+          url: /api/resources
+          headers: { Authorization: "Bearer {{ token }}" }
+  - name: sign in
+    weight: 1
+    flow:
+      - post:
+          name: sign in
+          url: /api/auth/login
+          json: { email: "{{ email }}", password: "{{ password }}" }

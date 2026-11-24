@@ -270,3 +270,6 @@ backend/*/typing_extensions.py
 frontend/cypress/screenshots/
 frontend/cypress/videos/
 frontend/coverage/
+
+# Load test reports
+tests/load/results/
