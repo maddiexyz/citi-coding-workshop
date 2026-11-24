@@ -1,35 +1,31 @@
-import { useState } from 'react'
-import reactLogo from '/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { Navigate, Route, Routes } from 'react-router-dom';
+import RequireAuth from './auth/RequireAuth';
+import AppLayout from './components/AppLayout';
+import LoginPage from './pages/LoginPage';
+import ProjectFormPage from './pages/ProjectFormPage';
+import ProjectsPage from './pages/ProjectsPage';
 
-function App() {
-  const [count, setCount] = useState(0)
-
+/**
+ * Wrap a page so it needs a signed-in user and gets the app frame.
+ * @param {import('react').ReactNode} page
+ */
+function protectedPage(page) {
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <RequireAuth>
+      <AppLayout>{page}</AppLayout>
+    </RequireAuth>
+  );
 }
 
-export default App
+/** Application routes. */
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/projects" element={protectedPage(<ProjectsPage />)} />
+      <Route path="/projects/new" element={protectedPage(<ProjectFormPage />)} />
+      <Route path="/projects/:id/edit" element={protectedPage(<ProjectFormPage />)} />
+      <Route path="*" element={<Navigate to="/projects" replace />} />
+    </Routes>
+  );
+}
