@@ -1,4 +1,6 @@
 import PropTypes from 'prop-types';
+import { Link as RouterLink } from 'react-router-dom';
+import CardActionArea from '@mui/material/CardActionArea';
 import Card from '@mui/material/Card';
 import CardActions from '@mui/material/CardActions';
 import CardContent from '@mui/material/CardContent';
@@ -7,7 +9,7 @@ import Typography from '@mui/material/Typography';
 import ProjectActions from './ProjectActions';
 import ProjectStatusChip from './ProjectStatusChip';
 import projectShape from './projectPropTypes';
-import { formatDate } from '../utils/format';
+import { formatDate, formatProgress } from '../utils/format';
 
 /** Mobile view: one card per project. */
 export default function ProjectCardList({ projects, canChange, onDelete }) {
@@ -15,6 +17,7 @@ export default function ProjectCardList({ projects, canChange, onDelete }) {
     <Stack spacing={1.5} component="ul" sx={{ listStyle: 'none', p: 0, m: 0 }} aria-label="Projects">
       {projects.map((project) => (
         <Card key={project.id} variant="outlined" component="li">
+          <CardActionArea component={RouterLink} to={`/projects/${project.id}`} aria-label={`Open ${project.code}`}>
           <CardContent sx={{ pb: 1 }}>
             <Stack direction="row" spacing={1} sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="overline" sx={{ fontWeight: 600 }}>{project.code}</Typography>
@@ -27,8 +30,11 @@ export default function ProjectCardList({ projects, canChange, onDelete }) {
               {formatDate(project.start_date)}
               {' – '}
               {formatDate(project.end_date)}
+              {' · '}
+              {formatProgress(project)}
             </Typography>
           </CardContent>
+          </CardActionArea>
           {canChange(project) && (
             <CardActions sx={{ justifyContent: 'flex-end', pt: 0 }}>
               <ProjectActions project={project} onDelete={onDelete} />

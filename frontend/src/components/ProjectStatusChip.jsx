@@ -1,11 +1,9 @@
 import PropTypes from 'prop-types';
-import Chip from '@mui/material/Chip';
-import { statusInfo } from '../constants/projectStatus';
+import StatusChip from './StatusChip';
 
 /** A colored chip showing a project's status. */
 export default function ProjectStatusChip({ status }) {
-  const { label, color } = statusInfo(status);
-  return <Chip label={label} color={color} size="small" variant={color === 'default' ? 'outlined' : 'filled'} />;
+  return <StatusChip status={status} />;
 }
 
 ProjectStatusChip.propTypes = {

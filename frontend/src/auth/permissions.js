@@ -29,3 +29,30 @@ export function canChangeProject(user, project) {
   if (user?.role === 'admin') return true;
   return user?.role === 'project_manager' && project.owner_id === user.id;
 }
+
+/**
+ * @param {{id: number, role: string}|null} user
+ * @param {{team_lead_id?: number|null}} project
+ * @returns {boolean} True if the user is the team lead assigned to the project.
+ */
+export function isAssignedTeamLead(user, project) {
+  return user?.role === 'team_lead' && project.team_lead_id === user.id;
+}
+
+/**
+ * @param {{id: number, role: string}|null} user
+ * @param {{owner_id: number, team_lead_id?: number|null}} project
+ * @returns {boolean} True if the user may create/edit deliverables and dependencies in the project.
+ */
+export function canEditDeliverables(user, project) {
+  return canChangeProject(user, project) || isAssignedTeamLead(user, project);
+}
+
+/**
+ * @param {{id: number, role: string}|null} user
+ * @param {{owner_id: number}} project
+ * @returns {boolean} True if the user may delete deliverables (admin or the owning PM, not the team lead).
+ */
+export function canDeleteDeliverables(user, project) {
+  return canChangeProject(user, project);
+}

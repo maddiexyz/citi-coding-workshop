@@ -11,6 +11,10 @@ const projectShape = PropTypes.shape({
   end_date: PropTypes.string,
   owner_id: PropTypes.number.isRequired,
   owner_name: PropTypes.string,
+  team_lead_id: PropTypes.number,
+  team_lead_name: PropTypes.string,
+  deliverables_total: PropTypes.number,
+  deliverables_done: PropTypes.number,
 });
 
 export default projectShape;

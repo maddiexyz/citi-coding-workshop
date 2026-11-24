@@ -12,3 +12,14 @@ export function formatDate(isoDate) {
   if (!isoDate) return '—';
   return DATE_FORMAT.format(new Date(`${isoDate}T00:00:00Z`));
 }
+
+/**
+ * Describe deliverable progress, e.g. "3 / 5 done".
+ * @param {{deliverables_done?: number, deliverables_total?: number}} project
+ * @returns {string} The progress text, or "No deliverables".
+ */
+export function formatProgress(project) {
+  const total = project.deliverables_total ?? 0;
+  if (!total) return 'No deliverables';
+  return `${project.deliverables_done ?? 0} / ${total} done`;
+}

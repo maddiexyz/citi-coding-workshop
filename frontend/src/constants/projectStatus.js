@@ -9,9 +9,10 @@ export const PROJECT_STATUSES = [
 
 /**
  * @param {string} value A status value such as "on_hold".
+ * @param {Array<{value: string}>} [statuses] The list to look in (projects by default).
  * @returns {{value: string, label: string, color: string}} Its display settings.
  */
-export function statusInfo(value) {
-  return PROJECT_STATUSES.find((status) => status.value === value)
+export function statusInfo(value, statuses = PROJECT_STATUSES) {
+  return statuses.find((status) => status.value === value)
     ?? { value, label: value, color: 'default' };
 }

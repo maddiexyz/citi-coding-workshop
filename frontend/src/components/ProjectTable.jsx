@@ -1,4 +1,6 @@
 import PropTypes from 'prop-types';
+import { Link as RouterLink } from 'react-router-dom';
+import Link from '@mui/material/Link';
 import Paper from '@mui/material/Paper';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
@@ -9,7 +11,7 @@ import TableRow from '@mui/material/TableRow';
 import ProjectActions from './ProjectActions';
 import ProjectStatusChip from './ProjectStatusChip';
 import projectShape from './projectPropTypes';
-import { formatDate } from '../utils/format';
+import { formatDate, formatProgress } from '../utils/format';
 
 /** Desktop view: projects in a table. */
 export default function ProjectTable({ projects, canChange, onDelete }) {
@@ -22,6 +24,7 @@ export default function ProjectTable({ projects, canChange, onDelete }) {
             <TableCell>Name</TableCell>
             <TableCell>Status</TableCell>
             <TableCell>Owner</TableCell>
+            <TableCell>Deliverables</TableCell>
             <TableCell>Start</TableCell>
             <TableCell>End</TableCell>
             <TableCell align="right">Actions</TableCell>
@@ -31,9 +34,12 @@ export default function ProjectTable({ projects, canChange, onDelete }) {
           {projects.map((project) => (
             <TableRow key={project.id} hover>
               <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{project.code}</TableCell>
-              <TableCell>{project.name}</TableCell>
+              <TableCell>
+                <Link component={RouterLink} to={`/projects/${project.id}`}>{project.name}</Link>
+              </TableCell>
               <TableCell><ProjectStatusChip status={project.status} /></TableCell>
               <TableCell>{project.owner_name}</TableCell>
+              <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatProgress(project)}</TableCell>
               <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(project.start_date)}</TableCell>
               <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(project.end_date)}</TableCell>
               <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>

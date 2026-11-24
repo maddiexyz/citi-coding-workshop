@@ -13,10 +13,11 @@ import useAuth from '../auth/useAuth';
 import { canChangeProject, canCreateProject } from '../auth/permissions';
 import { PROJECT_STATUSES } from '../constants/projectStatus';
 import { createProject, getProject, updateProject } from '../services/projectsApi';
+import { listUsers } from '../services/usersApi';
 import validateProject from '../utils/projectValidation';
 
 const EMPTY_FORM = {
-  code: '', name: '', description: '', status: 'planned', start_date: '', end_date: '',
+  code: '', name: '', description: '', status: 'planned', start_date: '', end_date: '', team_lead_id: '',
 };
 
 /** Convert an API project into form values (nulls become empty strings). */
@@ -37,6 +38,16 @@ export default function ProjectFormPage() {
   const [formError, setFormError] = useState(null);
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
+  const [teamLeads, setTeamLeads] = useState([]);
+
+  // Active team leads for the picker (only admins and project managers reach this form)
+  useEffect(() => {
+    let cancelled = false;
+    listUsers({ role: 'team_lead', active: true })
+      .then((items) => !cancelled && setTeamLeads(items))
+      .catch(() => {}); // the picker just stays empty; saving still works
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (!isEdit) return;
@@ -84,6 +95,7 @@ export default function ProjectFormPage() {
       description: values.description.trim() || null,
       start_date: values.start_date || null,
       end_date: values.end_date || null,
+      team_lead_id: values.team_lead_id === '' ? null : Number(values.team_lead_id),
     };
     try {
       const saved = isEdit ? await updateProject(id, payload) : await createProject(payload);
@@ -122,6 +134,19 @@ export default function ProjectFormPage() {
             {PROJECT_STATUSES.map((option) => (
               <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>
             ))}
+          </TextField>
+          <TextField
+            label="Team lead"
+            select
+            {...fieldProps('team_lead_id')}
+            helperText={errors.team_lead_id ?? 'Can add and edit deliverables in this project'}
+          >
+            <MenuItem value="">Not assigned</MenuItem>
+            {/* Keep the current lead selectable even if they are no longer active */}
+            {project?.team_lead_id && !teamLeads.some((u) => u.id === project.team_lead_id) && (
+              <MenuItem value={project.team_lead_id}>{project.team_lead_name}</MenuItem>
+            )}
+            {teamLeads.map((lead) => <MenuItem key={lead.id} value={lead.id}>{lead.full_name}</MenuItem>)}
           </TextField>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <TextField label="Start date" type="date" {...fieldProps('start_date')} slotProps={{ inputLabel: { shrink: true } }} />
