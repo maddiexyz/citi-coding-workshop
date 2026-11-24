@@ -125,3 +125,12 @@ export function canManageUsers(user) {
 export function canManageDepartments(user) {
   return user?.role === 'admin';
 }
+
+/**
+ * @param {{resource_id?: number|null}|null} user The signed-in user (resource_id from /auth/me).
+ * @param {{assignee_resource_id?: number|null}} deliverable
+ * @returns {boolean} True if the user is the deliverable's assignee and so may change its status (only).
+ */
+export function canUpdateDeliverableStatus(user, deliverable) {
+  return user?.resource_id != null && deliverable.assignee_resource_id === user.resource_id;
+}

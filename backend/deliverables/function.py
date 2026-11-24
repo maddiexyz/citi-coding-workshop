@@ -24,7 +24,7 @@ from psycopg import errors
 from common import audit, db
 from common.auth import linked_resource_id, require_auth
 from common.http import ApiError, Request, json_response, make_handler, parse_bool, parse_id
-from common.permissions import can_delete_deliverables, can_edit_deliverables
+from common.permissions import can_delete_deliverables, can_edit_deliverables, can_update_deliverable_status
 from common.validation import Validator
 
 STATUSES = ("not_started", "in_progress", "done", "cancelled")
@@ -172,12 +172,34 @@ def create_deliverable(request: Request) -> dict:
     return json_response(201, with_dependencies(find_deliverable(row["id"])))
 
 
+def require_status_only(data: dict, deliverable: dict) -> None:
+    """403 unless the only field an assignee changed is the status."""
+    current = {
+        "title": deliverable["title"], "description": deliverable["description"],
+        "due_date": deliverable["due_date"], "assignee_resource_id": deliverable["assignee_resource_id"],
+    }
+    changed = sorted(field for field, value in current.items() if data.get(field) != value)
+    if changed:
+        raise ApiError(403, "forbidden", "As the assignee you can only change the status",
+                       {field: "Only the status can be changed by the assignee" for field in changed})
+
+
 @require_auth
 def update_deliverable(request: Request, deliverable_id: str) -> dict:
-    """Replace a deliverable's editable fields (it stays in its project)."""
+    """
+    Replace a deliverable's editable fields (it stays in its project).
+
+    Editors (admin, owning PM, assigned team lead) may change everything; the
+    deliverable's assignee may change only its status.
+    """
     deliverable = find_deliverable(parse_id(deliverable_id, "Deliverable id"))
-    require_edit(request, load_project(deliverable["project_id"]))
+    project = load_project(deliverable["project_id"])
+    editor = can_edit_deliverables(request.user, project)
+    if not editor and not can_update_deliverable_status(request.user, deliverable, linked_resource_id(request.user)):
+        raise ApiError(403, "forbidden", "You cannot change deliverables in this project")
     data = validate_deliverable(request.json(), creating=False)
+    if not editor:
+        require_status_only(data, deliverable)
     with db.transaction():
         before = db.fetch_one("SELECT * FROM deliverables WHERE id = %s", (deliverable["id"],))
         after = db.fetch_one(

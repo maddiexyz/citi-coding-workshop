@@ -35,6 +35,16 @@ Branch `feature/v1.1` (from `feature/increment-e`).
   by me* (team leads), kept in the URL as `?mine=1`; hidden for viewers and
   admins.
 
+## 5. Assignees update their own deliverables
+- Rule `can_update_deliverable_status` in `backend/_common/permissions.py`,
+  mirrored as `canUpdateDeliverableStatus` in `frontend/src/auth/permissions.js`:
+  the user whose linked person is a deliverable's assignee may change its
+  status. A `PUT` from them that changes any other field is a 403 naming the
+  fields; other people's deliverables are a 403; creating and deleting are
+  unchanged. Changes are audited as usual.
+- The deliverable dialog opens in an *Update status* mode for them: every
+  field but the status is locked, with a note explaining why.
+
 ## Decisions made on your behalf
 | Item | Decision | Why |
 | --- | --- | --- |
@@ -44,3 +54,4 @@ Branch `feature/v1.1` (from `feature/increment-e`).
 | 1 | People grouping is done in the browser from the filtered list | The list already has capacity and this week's hours; no extra endpoint |
 | 3 | The Mine toggle is hidden for admins as well as viewers | The brief names PMs and team leads; admins manage everything |
 | 3 | `assignee=me` / `resource=me` with no linked person return nothing | "Mine" must never widen to everything |
+| 5 | The assignee uses the same `PUT /api/deliverables/{id}` with unchanged values (no separate status endpoint) | One contract; the server compares field by field and names any field that may not change |

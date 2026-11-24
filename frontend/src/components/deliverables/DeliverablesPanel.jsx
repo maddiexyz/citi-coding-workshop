@@ -10,7 +10,7 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import AddIcon from '@mui/icons-material/Add';
 import useAuth from '../../auth/useAuth';
-import { canDeleteDeliverables, canEditDeliverables } from '../../auth/permissions';
+import { canDeleteDeliverables, canEditDeliverables, canUpdateDeliverableStatus } from '../../auth/permissions';
 import { deleteDeliverable, listDeliverables } from '../../services/deliverablesApi';
 import { listResources } from '../../services/resourcesApi';
 import useDebouncedValue from '../../utils/useDebouncedValue';
@@ -119,7 +119,7 @@ export default function DeliverablesPanel({ project, onChanged }) {
         deliverables={result.items}
         isDesktop={isDesktop}
         canDelete={canDelete}
-        onOpen={(item) => setDialog({ id: item.id })}
+        onOpen={(item) => setDialog({ id: item.id, statusOnly: !canEdit && canUpdateDeliverableStatus(user, item) })}
         onDelete={setToDelete}
       />
     );
@@ -148,7 +148,8 @@ export default function DeliverablesPanel({ project, onChanged }) {
           open
           projectId={project.id}
           deliverableId={dialog.id}
-          readOnly={!canEdit}
+          readOnly={!canEdit && !dialog.statusOnly}
+          statusOnly={Boolean(dialog.statusOnly)}
           projectDeliverables={all}
           people={people}
           onClose={() => setDialog(null)}

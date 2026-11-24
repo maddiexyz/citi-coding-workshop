@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canChangeProject, canCreateProject, canDeleteDeliverables, canEditDeliverables, canManageAllocations,
   canManageResources, isAssignedTeamLead, canDeleteProject, canManageBudget, canDeleteBudgetEntries,
-  canReadProjectAudit, canManageUsers,
+  canReadProjectAudit, canManageUsers, canUpdateDeliverableStatus,
 } from './permissions';
 
 const project = { owner_id: 1 };
@@ -100,4 +100,12 @@ describe('canManageUsers', () => {
   it.each([['admin', true], ['project_manager', false], ['team_lead', false], ['viewer', false]])(
     '%s -> %s', (role, expected) => expect(canManageUsers({ id: 1, role })).toBe(expected),
   );
+});
+
+describe('canUpdateDeliverableStatus', () => {
+  it('lets only the assignee (via their linked person) update the status', () => {
+    expect(canUpdateDeliverableStatus({ id: 1, resource_id: 3 }, { assignee_resource_id: 3 })).toBe(true);
+    expect(canUpdateDeliverableStatus({ id: 1, resource_id: 3 }, { assignee_resource_id: 4 })).toBe(false);
+    expect(canUpdateDeliverableStatus({ id: 1, resource_id: null }, { assignee_resource_id: null })).toBe(false);
+  });
 });

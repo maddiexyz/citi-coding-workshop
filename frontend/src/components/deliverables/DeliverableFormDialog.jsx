@@ -28,11 +28,13 @@ function toFormValues(deliverable) {
 
 /**
  * Create, edit or view a deliverable. With a deliverableId it loads the
- * deliverable and shows its dependencies; readOnly shows everything disabled.
+ * deliverable and shows its dependencies; readOnly shows everything disabled;
+ * statusOnly (the assignee) leaves only the status editable.
  * onChanged is called after any save (including dependency changes).
  */
 export default function DeliverableFormDialog({
-  open, projectId, deliverableId = null, readOnly = false, projectDeliverables, people = [], onClose, onChanged,
+  open, projectId, deliverableId = null, readOnly = false, statusOnly = false, projectDeliverables, people = [],
+  onClose, onChanged,
 }) {
   const fullScreen = useMediaQuery({ maxWidth: 599 });
   const isEdit = deliverableId !== null;
@@ -100,12 +102,13 @@ export default function DeliverableFormDialog({
     onChange: setField(name),
     error: Boolean(errors[name]),
     helperText: errors[name],
-    disabled: saving || readOnly,
+    disabled: saving || readOnly || (statusOnly && name !== 'status'),
     fullWidth: true,
   });
 
   let title = 'New deliverable';
   if (isEdit) title = readOnly ? 'Deliverable' : 'Edit deliverable';
+  if (statusOnly) title = 'Update status';
 
   return (
     <Dialog open={open} onClose={saving ? undefined : onClose} fullWidth maxWidth="sm" fullScreen={fullScreen}>
@@ -120,7 +123,10 @@ export default function DeliverableFormDialog({
             <Stack spacing={2.5} sx={{ pt: 1 }}>
               {formError && <Alert severity="error">{formError}</Alert>}
               {deliverable && <DeliverableFlags isBlocked={deliverable.is_blocked} isOverdue={deliverable.is_overdue} />}
-              <TextField label="Title" required autoFocus={!readOnly} {...fieldProps('title')} />
+              <TextField label="Title" required autoFocus={!readOnly && !statusOnly} {...fieldProps('title')} />
+              {statusOnly && (
+                <Alert severity="info">You are assigned to this deliverable, so you can update its status.</Alert>
+              )}
               <TextField label="Description" multiline minRows={2} {...fieldProps('description')} />
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <TextField label="Status" select {...fieldProps('status')}>
@@ -144,7 +150,7 @@ export default function DeliverableFormDialog({
                   <DependencyEditor
                     deliverable={deliverable}
                     options={projectDeliverables}
-                    readOnly={readOnly}
+                    readOnly={readOnly || statusOnly}
                     onChange={dependencyChanged}
                   />
                 </>
@@ -170,6 +176,7 @@ DeliverableFormDialog.propTypes = {
   projectId: PropTypes.number.isRequired,
   deliverableId: PropTypes.number,
   readOnly: PropTypes.bool,
+  statusOnly: PropTypes.bool,
   projectDeliverables: PropTypes.arrayOf(deliverableSummaryShape).isRequired,
   people: PropTypes.arrayOf(PropTypes.shape({ id: PropTypes.number.isRequired, full_name: PropTypes.string.isRequired })),
   onClose: PropTypes.func.isRequired,

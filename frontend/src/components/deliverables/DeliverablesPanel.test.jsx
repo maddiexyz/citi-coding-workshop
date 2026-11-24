@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Context as ResponsiveContext } from 'react-responsive';
 import AuthContext from '../../auth/authContext';
 import DeliverablesPanel from './DeliverablesPanel';
-import { listDeliverables } from '../../services/deliverablesApi';
+import { getDeliverable, listDeliverables, updateDeliverable } from '../../services/deliverablesApi';
 
 vi.mock('../../services/resourcesApi', () => ({
   listResources: vi.fn().mockResolvedValue({ items: [], week_start: '2030-01-07' }),
@@ -63,6 +64,23 @@ describe('DeliverablesPanel', () => {
     expect(await screen.findByRole('list', { name: 'Deliverables' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /new deliverable/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Delete Spec' })).not.toBeInTheDocument();
+  });
+
+  it('lets the assignee update only the status of their deliverable', async () => {
+    const mine = { ...ITEMS[0], description: null, assignee_resource_id: 3, assignee_name: 'Vee' };
+    getDeliverable.mockResolvedValue({ ...mine, predecessors: [], successors: [] });
+    updateDeliverable.mockResolvedValue({ ...mine, status: 'done' });
+    renderAs({ id: 9, role: 'viewer', resource_id: 3 }, 1200, Promise.resolve([mine]));
+    expect(await screen.findByText('Vee (you)')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('row', { name: 'Open Spec' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Update status' });
+    expect(await within(dialog).findByDisplayValue('Spec')).toBeDisabled();
+    await userEvent.click(within(dialog).getByRole('combobox', { name: 'Status' }));
+    await userEvent.click(screen.getByRole('option', { name: 'Done' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(updateDeliverable).toHaveBeenCalledWith(1, {
+      title: 'Spec', description: null, status: 'done', due_date: '2026-01-01', assignee_resource_id: 3,
+    });
   });
 
   it('shows the empty state', async () => {

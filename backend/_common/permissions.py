@@ -11,6 +11,8 @@ Deliverables and their dependencies (everyone may read):
 - admin and the owning project manager: create, edit, delete
 - the project's assigned team lead (projects.team_lead_id): create and edit
   deliverables and manage dependencies, but not delete deliverables
+- the deliverable's assignee (the person linked to the user's account):
+  change its status, and nothing else
 
 Resources (people and their weekly capacity; everyone may read):
 - admin only: create, edit, delete
@@ -109,3 +111,15 @@ def can_read_project_audit(user: Any, project: dict) -> bool:
 def can_manage_departments(user: Any) -> bool:
     """Return True if the user may create, rename or delete departments (admin only)."""
     return user.role == ADMIN
+
+
+def can_update_deliverable_status(user: Any, deliverable: dict, resource_id: Any) -> bool:
+    """
+    Return True if the user may change this deliverable's status because they are its assignee.
+
+    Args:
+        user: The current user.
+        deliverable: The deliverable (needs ``assignee_resource_id``).
+        resource_id: The person (resource) linked to the user's account, or None.
+    """
+    return resource_id is not None and deliverable.get("assignee_resource_id") == resource_id
