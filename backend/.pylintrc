@@ -1,0 +1,9 @@
+[MAIN]
+ignore = .venv,_examples,tests
+
+[FORMAT]
+max-line-length = 120
+
+[MESSAGES CONTROL]
+# Lambda handlers take (event, context) even when context is unused
+disable = unused-argument

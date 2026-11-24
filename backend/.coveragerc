@@ -1,0 +1,17 @@
+# Coverage of our own code only: service folders also contain installed pip
+# packages (start-dev.sh installs them there for LocalStack hot reload).
+[run]
+branch = True
+source = .
+include =
+    */_common/*.py
+    */_migrate/function.py
+    */*/function.py
+omit =
+    */_examples/*
+    */tests/*
+
+[report]
+fail_under = 80
+show_missing = True
+skip_covered = False
