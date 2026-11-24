@@ -338,6 +338,8 @@ fi
 shopt -s nullglob
 for req in "$PROJECT_ROOT"/backend/*/requirements.txt; do
     svc_dir="$(dirname "$req")"
+    # _-prefixed folders (e.g. _migrate) are not hot-reloaded; Terraform packages them
+    case "$(basename "$svc_dir")" in _*|.*) continue ;; esac
     REQS_HASH=$(md5sum "$req" 2>/dev/null | cut -d' ' -f1)
     HASH_FILE="$svc_dir/.pip_installed"
     if [ "$(cat "$HASH_FILE" 2>/dev/null)" = "$REQS_HASH" ]; then
