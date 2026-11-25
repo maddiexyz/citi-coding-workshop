@@ -9,6 +9,7 @@ import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import { alpha } from '@mui/material/styles';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import projectShape from '../projectPropTypes';
@@ -156,9 +157,20 @@ export default function BriefingCard({ project }) {
   }
 
   return (
-    <Paper variant="outlined" component="section" aria-labelledby="briefing-heading" sx={{ p: { xs: 2, sm: 2.5 } }}>
-      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1, flexWrap: 'wrap' }} useFlexGap>
-        <Typography variant="subtitle2" component="h2" id="briefing-heading">AI briefing</Typography>
+    <Paper
+      variant="outlined"
+      component="section"
+      aria-labelledby="briefing-heading"
+      sx={(theme) => ({
+        p: { xs: 2, sm: 3 }, borderTop: 4, borderTopColor: 'secondary.main',
+        backgroundImage: `linear-gradient(180deg, ${alpha(theme.palette.secondary.main, 0.06)}, transparent 120px)`,
+      })}
+    >
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1.5, flexWrap: 'wrap' }} useFlexGap>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+          <AutoAwesomeIcon color="secondary" aria-hidden="true" />
+          <Typography variant="h6" component="h2" id="briefing-heading">AI briefing</Typography>
+        </Stack>
         <Button
           variant={state.briefing ? 'text' : 'contained'}
           size="small"

@@ -28,7 +28,7 @@ describe('Departments and colour theme', () => {
     cy.get('button[aria-label^="Colour theme: System"]').click();
     cy.get('button[aria-label^="Colour theme: Light"]').click();
     cy.get('button[aria-label^="Colour theme: Dark"]');
-    cy.get('body').should('have.css', 'background-color', 'rgb(18, 18, 18)');
+    cy.get('body').should('have.css', 'background-color', 'rgb(11, 18, 32)');
     cy.reload();
     cy.get('button[aria-label^="Colour theme: Dark"]');
     cy.window().its('localStorage').invoke('getItem', 'mui-mode').should('eq', 'dark');

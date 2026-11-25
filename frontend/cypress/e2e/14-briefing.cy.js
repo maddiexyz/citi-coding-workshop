@@ -2,7 +2,7 @@
 // The signed facts come from the real projects service; the model call
 // (/api/ai/briefing) is stubbed, so the run needs no API key and costs nothing.
 const iso = (offset) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10);
-const BACKGROUND = { light: 'rgb(255, 255, 255)', dark: 'rgb(18, 18, 18)' };
+const BACKGROUND = { light: 'rgb(244, 246, 251)', dark: 'rgb(11, 18, 32)' };
 
 /** A reply like the ai service's, citing facts from the signed bundle the browser sent. */
 const reply = (bundle) => ({

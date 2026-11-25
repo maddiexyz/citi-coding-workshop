@@ -11,6 +11,7 @@ import projectShape from '../projectPropTypes';
 import { getForecast } from '../../services/forecastApi';
 import { formatDate } from '../../utils/format';
 import SlipChip from './SlipChip';
+import InsightsOutlinedIcon from '@mui/icons-material/InsightsOutlined';
 
 const CONFIDENCE = {
   high: { label: 'High confidence', color: 'success' },
@@ -129,8 +130,16 @@ export default function ForecastCard({ project }) {
     content = <Body forecast={state.forecast} />;
   }
   return (
-    <Paper variant="outlined" component="section" aria-labelledby="forecast-heading" sx={{ p: { xs: 2, sm: 2.5 } }}>
-      <Typography variant="subtitle2" component="h2" id="forecast-heading" gutterBottom>Completion forecast</Typography>
+    <Paper
+      variant="outlined"
+      component="section"
+      aria-labelledby="forecast-heading"
+      sx={{ p: { xs: 2, sm: 3 }, borderTop: 4, borderTopColor: 'primary.main' }}
+    >
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5 }}>
+        <InsightsOutlinedIcon color="primary" aria-hidden="true" />
+        <Typography variant="h6" component="h2" id="forecast-heading">Completion forecast</Typography>
+      </Stack>
       {content}
     </Paper>
   );
