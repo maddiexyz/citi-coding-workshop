@@ -20,8 +20,14 @@ import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import { alpha } from '@mui/material/styles';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SearchIcon from '@mui/icons-material/Search';
+import FolderOpenIcon from '@mui/icons-material/FolderOpen';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import EventBusyIcon from '@mui/icons-material/EventBusy';
+import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined';
 import BurnChip from '../components/budget/BurnChip';
 import DepartmentSelect from '../components/DepartmentSelect';
 import ProjectStatusChip from '../components/ProjectStatusChip';
@@ -35,19 +41,54 @@ const TIME = new Intl.DateTimeFormat(LOCALE, { hour: '2-digit', minute: '2-digit
 
 const SEVERITY = { high: { label: 'High risk', color: 'error' }, medium: { label: 'At risk', color: 'warning' } };
 
-function StatCard({ label, value, hint = null, to = null, tone = 'default' }) {
+const STAT_ICONS = {
+  projects: FolderOpenIcon,
+  risk: WarningAmberIcon,
+  budget: AccountBalanceWalletIcon,
+  overdue: EventBusyIcon,
+  people: GroupOutlinedIcon,
+};
+
+/**
+ * One summary number. The tone colours the icon and the left edge; the
+ * status is also written out ("Needs attention" / "All clear"), so it never
+ * depends on colour alone.
+ */
+function StatCard({ label, value, hint = null, to = null, tone = 'default', icon }) {
+  const Icon = STAT_ICONS[icon];
+  const flagged = tone !== 'default' && value > 0;
+  const colour = flagged ? `${tone}.main` : 'primary.main';
   const body = (
-    <CardContent>
-      <Typography variant="caption" color="text.secondary" component="h2">{label}</Typography>
-      <Typography variant="h4" component="p" color={tone === 'default' || value === 0 ? 'text.primary' : `${tone}.main`}>
-        {value}
-      </Typography>
-      {hint && <Typography variant="body2" color="text.secondary">{hint}</Typography>}
+    <CardContent sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+      <Box
+        aria-hidden="true"
+        sx={(theme) => ({
+          display: 'grid', placeItems: 'center', width: 40, height: 40, borderRadius: 2, flexShrink: 0, color: colour,
+          bgcolor: alpha(flagged ? theme.palette[tone].main : theme.palette.primary.main, 0.12),
+        })}
+      >
+        <Icon fontSize="small" />
+      </Box>
+      <Box sx={{ minWidth: 0 }}>
+        <Typography variant="caption" color="text.secondary" component="h2" sx={{ fontWeight: 600 }}>{label}</Typography>
+        <Typography variant="h4" component="p" sx={{ lineHeight: 1.1, my: 0.25 }} color={flagged ? colour : 'text.primary'}>
+          {value}
+        </Typography>
+        {tone !== 'default' && (
+          <Typography variant="caption" component="p" sx={{ fontWeight: 600 }} color="text.secondary">
+            {flagged ? 'Needs attention' : 'All clear'}
+          </Typography>
+        )}
+        {hint && <Typography variant="body2" color="text.secondary">{hint}</Typography>}
+      </Box>
     </CardContent>
   );
   return (
-    <Card variant="outlined" sx={{ flex: '1 1 160px' }}>
-      {to ? <CardActionArea component={RouterLink} to={to}>{body}</CardActionArea> : body}
+    <Card
+      variant="outlined"
+      sx={{ flex: '1 1 180px', borderLeft: 4, borderLeftColor: flagged ? colour : 'divider' }}
+    >
+      {to ? <CardActionArea component={RouterLink} to={to} sx={{ height: '100%' }}>{body}</CardActionArea> : body}
     </Card>
   );
 }
@@ -58,6 +99,7 @@ StatCard.propTypes = {
   hint: PropTypes.string,
   to: PropTypes.string,
   tone: PropTypes.oneOf(['default', 'error', 'warning']),
+  icon: PropTypes.oneOf(Object.keys(STAT_ICONS)).isRequired,
 };
 
 /** One project's risk reasons, each with its details spelled out. */
@@ -190,11 +232,11 @@ export default function DashboardPage() {
       {!s && !summary.error && <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress aria-label="Loading summary" /></Box>}
       {s && (
         <Stack direction="row" useFlexGap sx={{ flexWrap: 'wrap', gap: 2 }}>
-          <StatCard label="Active projects" value={s.active_projects} to="/projects" />
-          <StatCard label="At risk" value={s.at_risk} tone="warning" hint={s.high_risk ? `${s.high_risk} past their end date` : null} />
-          <StatCard label="Over budget" value={s.over_budget} tone="error" />
-          <StatCard label="Overdue deliverables" value={s.overdue_deliverables} tone="warning" hint={`${s.blocked_deliverables} blocked`} />
-          <StatCard label="Over-allocated this week" value={s.over_allocated_people.length} tone="warning" to="/resources" />
+          <StatCard label="Active projects" value={s.active_projects} to="/projects" icon="projects" />
+          <StatCard label="At risk" value={s.at_risk} tone="warning" icon="risk" hint={s.high_risk ? `${s.high_risk} past their end date` : null} />
+          <StatCard label="Over budget" value={s.over_budget} tone="error" icon="budget" />
+          <StatCard label="Overdue deliverables" value={s.overdue_deliverables} tone="warning" icon="overdue" hint={`${s.blocked_deliverables} blocked`} />
+          <StatCard label="Over-allocated this week" value={s.over_allocated_people.length} tone="warning" to="/resources" icon="people" />
         </Stack>
       )}
 
