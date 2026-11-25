@@ -31,8 +31,8 @@ module "lambda" {
     npm_requirements = try(each.value.npm_requirements, null)
   }]
 
-  vpc_security_group_ids = data.aws_security_groups.this.ids
-  vpc_subnet_ids         = local.public_subnet_ids
+  vpc_security_group_ids = contains(local.no_vpc_functions, each.key) ? null : data.aws_security_groups.this.ids
+  vpc_subnet_ids         = contains(local.no_vpc_functions, each.key) ? null : local.public_subnet_ids
   attach_network_policy  = true
 
   create_package                    = true
@@ -58,8 +58,10 @@ module "lambda" {
   }
 
   environment_variables = {
-    for key, value in local.env_vars :
-    key => trimspace(value) if try(trimspace(value), "") != ""
+    for key, value in merge(local.env_vars, each.key == "ai" ? local.ai_env_vars : {}) :
+    key => trimspace(value) if try(trimspace(value), "") != "" && !(
+      contains(local.no_vpc_functions, each.key) && can(regex("^(POSTGRES|MONGO)_", key))
+    )
   }
 
   tags = local.app_tags

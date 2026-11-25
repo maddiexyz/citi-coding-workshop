@@ -94,3 +94,22 @@ variable "app_currency" {
     error_message = "The app_currency variable must be a three-letter ISO 4217 code such as USD or EUR."
   }
 }
+
+variable "ai_enabled" {
+  description = "Turn on the AI project briefing (the ai Lambda calls the Anthropic API). Default: false."
+  type        = bool
+  default     = false
+}
+
+variable "ai_model_id" {
+  description = "Claude model used for AI project briefings. Default: claude-haiku-5-5."
+  type        = string
+  default     = "claude-haiku-5-5"
+}
+
+variable "anthropic_api_key" {
+  description = "Anthropic API key for the ai Lambda; set it with TF_VAR_anthropic_api_key, never commit it. Empty: AI off."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
