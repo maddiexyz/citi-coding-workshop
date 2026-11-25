@@ -278,6 +278,110 @@ their own work on *My work*, the landing page for everyone but admins.
 Every request is checked by the backend (401 / 403); the UI only hides what a
 role can't do. Full matrix: [docs/acme-project-tracking.md](./docs/acme-project-tracking.md#roles).
 
+## Use the API directly (curl)
+
+The API is plain JSON, so it works without the React app: sign in once, then
+send the token as a Bearer header. Ids below (`7`, `12`, `30`, `31`) are
+examples. `jq` is used only to pick the token out of the response.
+
+```sh
+BASE=https://<your-cloudfront-domain>/api      # local: http://localhost:3001/api
+
+# Sign in: the token is valid for 15 minutes; jar.txt keeps the refresh cookie
+TOKEN=$(curl -s -c jar.txt -X POST "$BASE/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "you@acme.example", "password": "your-password"}' | jq -r .token)
+```
+
+Read (lists come back as `{"items": [...]}`):
+
+```sh
+curl -s "$BASE/auth/me" -H "Authorization: Bearer $TOKEN"
+curl -s "$BASE/projects?status=active&q=crm" -H "Authorization: Bearer $TOKEN"
+curl -s "$BASE/projects/7" -H "Authorization: Bearer $TOKEN"
+curl -s "$BASE/projects/7/forecast" -H "Authorization: Bearer $TOKEN"
+curl -s "$BASE/deliverables?project_id=7&overdue=true" -H "Authorization: Bearer $TOKEN"
+curl -s "$BASE/deliverables?assignee=me" -H "Authorization: Bearer $TOKEN"
+curl -s "$BASE/dashboard/summary" -H "Authorization: Bearer $TOKEN"
+curl -s "$BASE/dashboard/at-risk?severity=medium" -H "Authorization: Bearer $TOKEN"
+```
+
+Write:
+
+```sh
+# Create a project (201)
+curl -s -X POST "$BASE/projects" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"code": "ACME-NEW", "name": "New project", "status": "active",
+       "start_date": "2026-12-01", "end_date": "2027-03-31"}'
+
+# Create a deliverable in it (201)
+curl -s -X POST "$BASE/deliverables" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"project_id": 7, "title": "Integration", "due_date": "2027-01-15",
+       "assignee_resource_id": 12, "estimate_days": 15}'
+
+# Make deliverable 31 depend on deliverable 30 (201)
+curl -s -X POST "$BASE/deliverables/31/dependencies" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"depends_on_id": 30}'
+
+# Update a deliverable (200)
+curl -s -X PUT "$BASE/deliverables/31" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"title": "Integration", "status": "in_progress", "due_date": "2027-01-15",
+       "assignee_resource_id": 12, "progress_pct": 40}'
+
+# Allocate a person to a project (201); over-capacity weeks come back as "warnings"
+curl -s -X POST "$BASE/allocations" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"project_id": 7, "resource_id": 12, "hours_per_week": 20,
+       "start_date": "2026-12-01", "end_date": "2027-01-31"}'
+
+# Record spend (201); amounts are strings so they stay exact
+curl -s -X POST "$BASE/budget" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"project_id": 7, "category": "software", "amount": "125000.00",
+       "spent_on": "2026-11-20", "description": "Licences"}'
+
+# Delete (204, empty body)
+curl -s -o /dev/null -w "%{http_code}\n" -X DELETE "$BASE/deliverables/31" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+PUT replaces the record, so send every field, not only the one that changes.
+The exception is `estimate_days`, `earliest_start` and `progress_pct` on a
+deliverable, which keep their stored value when left out.
+
+Stay signed in, and sign out:
+
+```sh
+# A new token and a new refresh cookie; the old cookie stops working
+TOKEN=$(curl -s -b jar.txt -c jar.txt -X POST "$BASE/auth/refresh" | jq -r .token)
+curl -s -b jar.txt -c jar.txt -X POST "$BASE/auth/logout"
+```
+
+Errors share one shape; add `-i` to see the status line:
+
+```json
+{"error": {"code": "validation_error", "message": "Some fields are invalid",
+           "details": {"title": "This field is required"}}}
+```
+
+| Status | Meaning |
+| --- | --- |
+| 400 | Validation failed; `details` names the fields |
+| 401 | Missing, invalid or expired token |
+| 403 | Signed in, but the role may not do this |
+| 404 | No such record |
+| 405 | Method not supported on this route |
+| 409 | Duplicate, overlap or still in use |
+| 429 | Too many failed sign-ins; see `Retry-After` |
+
+The role rules above apply here too, and every write is recorded in the
+activity log under the account that signed in. Every route of every service
+is listed at the top of its `backend/<service>/function.py`.
+
 ## Releases
 
 | Tag | What it adds | Notes |
