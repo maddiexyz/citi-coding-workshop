@@ -21,6 +21,7 @@ guides are in [docs/README.md](./docs/README.md) and the rubric is
 | What is the dependency chain between deliverables? | Project → Deliverables → *Chain* (the whole chain, blocked and overdue highlighted); cycles are rejected |
 | How much budget has been consumed versus planned? | Project → *Budget* in ₹ (planned, spent, remaining, burn %, by category); burn in the projects list |
 | When will each project really finish? (the brief's "difficulty in forecasting project completion dates") | Project → *Overview* → *Completion forecast* and → *Timeline*; *Forecast end* in the projects list; a late forecast is an at-risk reason on the Dashboard. See [Completion forecast](#completion-forecast) |
+| What should I tell the sponsor, and what do we do next? | Project → *Overview* → *AI briefing*: a short status report written by Claude from the project's own data, every point showing its source. See [AI project briefing](#ai-project-briefing) |
 
 ## Completion forecast
 
@@ -73,6 +74,50 @@ Limitations:
 - The local SQL demo (`bin/seed-demo.sh`, DEMO-* projects) has no estimates;
   the API seeder below does.
 
+## AI project briefing
+
+v2.1. On a project's Overview, admins, project managers and team leads can
+press **Generate AI briefing**. Claude (Haiku 5.5) writes a short status report
+for a sponsor: a headline, why the project is where it is, and up to three
+next steps. Every point carries chips for the facts it rests on (*Forecast*,
+*Critical path*, *Budget*, a deliverable…); hovering or focusing a chip shows
+the exact data. *Copy* puts it on the clipboard as plain text.
+
+- **Grounded.** The model sees only facts the app already computes: the
+  forecast, critical path, SPI, budget, risk reasons and the open
+  deliverables, each with an id. It must cite those ids, and the backend
+  drops any point that cites none of them. The overall status chip (on track,
+  at risk, late, complete) comes from the app's own rules, never from the model.
+- **No personal data.** Person names and emails are not sent; a deliverable
+  is only "assigned" or "unassigned". Deliverable titles are user text, so the
+  prompt tells the model to treat the facts as data, not instructions, and the
+  reply is held to a JSON schema.
+- **Two steps, because of the network.** The Lambdas sit in a VPC with no
+  route to the internet, and the database is only reachable from inside it.
+  So the projects service (inside) builds the facts and signs them with an
+  HMAC bound to the user and valid for two minutes:
+  `POST /api/projects/{id}/briefing-facts`. The new `ai` service, the only
+  Lambda outside the VPC and with no database settings, checks the signature
+  and calls the Anthropic API: `POST /api/ai/briefing`. Facts can't be edited
+  in the browser or replayed by someone else.
+- **Cost control.** Only made on request, never on page load; 20 briefings
+  per user per hour (429 after that, counted in `ai_usage`); viewers can't ask
+  for one. A briefing is a few thousand tokens on Haiku 5.5, about $0.0005.
+  Nothing generated is stored.
+- **Off by default.** It needs `TF_VAR_ai_enabled=true` and an Anthropic API
+  key at deploy time (see [Deploy to AWS](#deploy-to-aws)). Without them the
+  card says the briefing isn't available and nothing else changes.
+
+Limitations:
+- Answers vary between runs, and a model can still misread a fact; the card
+  says "check before sharing" and shows the sources so a reader can.
+- The `ai` Lambda can't reach the database, so it checks the access token's
+  signature and expiry but can't re-read the account; the signed facts, which
+  the projects service issued after its full check two minutes earlier, close
+  that gap.
+- Locally the model call needs internet access from LocalStack and a key;
+  the Cypress spec stubs it.
+
 ## Architecture
 
 ```mermaid
@@ -81,6 +126,8 @@ graph LR
     CF -->|/| S3["S3 website bucket"]
     CF -->|/api/{service}| L["Lambda per service<br/>auth · projects · deliverables · resources<br/>allocations · budget · audit · users · dashboard"]
     L --> DB[("Aurora PostgreSQL<br/>(local: PostgreSQL :5432)")]
+    CF -->|/api/ai| AI["ai Lambda<br/>(outside the VPC, no database)"]
+    AI --> Claude["Anthropic API<br/>Claude Haiku 5.5"]
     M["Private migrate Lambda<br/>(no URL)"] --> DB
 ```
 
@@ -88,7 +135,8 @@ graph LR
   `requirements.txt` is a service at `/api/<folder>`; shared code lives in
   `backend/_common` (routing and JSON errors, DB, JWT and sessions,
   permissions, validation, audit, risk). Folders starting with `_` are not
-  services.
+  services. All run inside the VPC except `ai`, which needs the internet for
+  the model API and has no database access.
 - **Database:** PostgreSQL. Migrations in `backend/_db/migrations`, applied by
   `bin/migrate.sh` locally and by the private `_migrate` Lambda in AWS.
   Derived values (blocked, overdue, progress, over-allocation, burn, at-risk)
@@ -199,6 +247,7 @@ due date):
 | 5 | Dashboard | ACME-TRN under *Projects needing attention*: *Forecast to finish N days after its end date* |
 | 6 | ACME-CRM (CRM migration) → Overview | On track: forecast end about 10 days before the planned end |
 | 7 | Sign in as the team lead (Arjun Nair) → My work → a deliverable | The assignee can change only *Status* and *Progress %* |
+| 8 | As the admin, ACME-TRN → Overview → *Generate AI briefing* (v2.1, needs AI switched on) | A *Late* briefing naming the critical path and the slip, with source chips; hover *Critical path* to see the exact chain it used |
 
 **Upgrading seeded data from v1.x**: run the seeder again. It gives every
 seeded deliverable that has no estimate yet its estimate, earliest start and
@@ -234,6 +283,17 @@ read -rsp "Admin password: " ADMIN_PASSWORD && echo && export ADMIN_PASSWORD
 ./bin/deploy-frontend.sh     # React build → S3 (stale files removed) → CloudFront
 ```
 
+To switch the AI briefing on, add these before `deploy-backend.sh` (the key is
+typed, never saved or committed; it ends up in the Lambda's settings and the
+Terraform state):
+
+```sh
+read -rsp "Anthropic API key: " TF_VAR_anthropic_api_key && echo && export TF_VAR_anthropic_api_key
+export TF_VAR_ai_enabled=true            # TF_VAR_ai_model_id=... to use another Claude model
+```
+
+Deploying again without them switches it off.
+
 Both scripts are safe to repeat: a second `deploy-backend.sh` reports *No
 changes*, no migrations and an existing admin. Never run
 `bin/cleanup-environment.sh` on the shared workshop stack.
@@ -242,9 +302,9 @@ changes*, no migrations and an existing admin. Never run
 
 | What | Command | Result |
 | --- | --- | --- |
-| Backend unit + integration (real PostgreSQL), coverage gate 80% | `backend/.venv/bin/pytest backend/tests --cov --cov-config=backend/.coveragerc` | 233 passed, **96%** |
-| Frontend components, pages and API clients, coverage gate 80% | `cd frontend && npm run coverage` | 272 passed, **93%** lines, 91% statements, 87% branches, 86% functions |
-| End-to-end (Cypress, production build, local stack) incl. axe WCAG 2 A/AA | `cd frontend && npm run e2e` | 13 specs, 28 tests passed (v2.0 adds the forecast spec and axe on the Timeline chart and table in light and dark) |
+| Backend unit + integration (real PostgreSQL), coverage gate 80% | `backend/.venv/bin/pytest backend/tests --cov --cov-config=backend/.coveragerc` | 275 passed, **96%** |
+| Frontend components, pages and API clients, coverage gate 80% | `cd frontend && npm run coverage` | 288 passed, **93%** lines, 91% statements, 87% branches, 86% functions |
+| End-to-end (Cypress, production build, local stack) incl. axe WCAG 2 A/AA | `cd frontend && npm run e2e` | 14 specs, 31 tests passed (v2.0 adds the forecast spec and axe on the Timeline; v2.1 the AI briefing spec, with the model call stubbed, in light and dark) |
 | API acceptance (curl, local stack) | `tests/acceptance/increment_{a,b,c,d}.sh` | 20 + 15 + 18 + 19 checks passed |
 | Sign-in, refresh cookie, sign-out on the deployed site | `tests/acceptance/cloud_auth_check.sh` (asks for an account) | 11 passed, 0 failed (2026-11-25) |
 | Load (Artillery) | `tests/load/run.sh local` (smoke) / `cloud` (asks for an account) | local: 556 requests, all 200, p95 34 ms. Cloud (2026-11-25, peak 20 new users/s): 6,340 requests, all 200, 0 failed, p95 55 ms, p99 518 ms |
@@ -390,6 +450,7 @@ is listed at the top of its `backend/<service>/function.py`.
 | `v1.1` | The API demo-data seeder (`tests/seed`), the cloud seed, sign-in check and load test results, and a read-only audit against the rubric | [changes/seed_data.md](./changes/seed_data.md), [docs/AUDIT.md](./docs/AUDIT.md) |
 | `v1.2` | The audit's five fixes, all deployed (listed below) | [changes/post_audit.md](./changes/post_audit.md) |
 | `v2.0` | Completion-date forecasting: estimates and progress on deliverables, critical-path forecast with confidence and SPI, late-forecast risk reason, *Forecast end* in the projects list, Timeline tab, seeded forecast demo | [Completion forecast](#completion-forecast), [changes/phaseF.md](./changes/phaseF.md) |
+| `v2.1` | AI project briefing (Claude Haiku 5.5, grounded in the app's facts, sources shown), the `ai` Lambda outside the VPC, using the API with curl | [AI project briefing](#ai-project-briefing), [changes/phaseG.md](./changes/phaseG.md) |
 
 What changed in `v1.2`:
 - **Error boundary.** A page that fails to render or load shows *Something
@@ -410,7 +471,10 @@ What changed in `v1.2`:
 Decisions, assumptions and their reasons are in [docs/PLAN.md](./docs/PLAN.md)
 and the per-increment notes in [changes/](./changes/). Known gaps:
 
-- No offline/PWA support or AI features; "real time" is 30-second polling on the dashboard.
+- No offline/PWA support; "real time" is 30-second polling on the dashboard.
+- The AI briefing is one feature, not an assistant: no chat or questions
+  across projects, and it is off unless a key is configured (see
+  [AI project briefing](#ai-project-briefing)).
 - One currency (INR), display only; no audit-log retention policy.
 - Refresh tokens are rotated but reuse of an old one doesn't revoke the session family.
 - Each concurrent Lambda holds its own database connection; at high
