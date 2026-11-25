@@ -461,6 +461,7 @@ is listed at the top of its `backend/<service>/function.py`.
 | `v1.2` | The audit's five fixes, all deployed (listed below) | [changes/post_audit.md](./changes/post_audit.md) |
 | `v2.0` | Completion-date forecasting: estimates and progress on deliverables, critical-path forecast with confidence and SPI, late-forecast risk reason, *Forecast end* in the projects list, Timeline tab, seeded forecast demo | [Completion forecast](#completion-forecast), [changes/phaseF.md](./changes/phaseF.md) |
 | `v2.1` | AI project briefing (Gemini Flash, grounded in the app's facts, sources shown), the `ai` Lambda outside the VPC, using the API with curl | [AI project briefing](#ai-project-briefing), [changes/phaseG.md](./changes/phaseG.md) |
+| `v2.2` | UI polish, visual only: refined theme (type scale, palette, cards, chips, tables; WCAG AA in light and dark), login page with tagline, dashboard summary cards with icons and written status, featured forecast and AI briefing cards. Frontend only; backend unchanged | merge of branch `ui/polish` |
 
 What changed in `v1.2`:
 - **Error boundary.** A page that fails to render or load shows *Something
