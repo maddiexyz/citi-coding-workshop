@@ -328,6 +328,13 @@ status to *completed* or *cancelled*; use delete only to remove mistakes.
   (independent deliverables run in parallel whoever is assigned), no holiday
   calendar (Monday to Friday), and estimate-based rather than velocity-based.
   SPI assumes each deliverable is planned as late as its due date allows.
+- **One global role per person.** A team lead can't be a plain member on
+  another project, and a PM can't lead someone else's project. Next step: a
+  `project_members` table (lead or member per project), with permission checks
+  against the project role instead of the global role.
+- **No role for ordinary employees.** People who only do the work get the
+  viewer role. Assignees can still update their own deliverables, because that
+  rule checks assignment, not role. A member role comes with per-project roles.
 - **Compiled dependencies** (`bcrypt`, `psycopg[binary]`) must match the
   Lambda runtime (Python 3.13, x86_64). `start-dev.sh` installs wheels for that
   target; for AWS, Terraform's Lambda module builds with the `python3.13`

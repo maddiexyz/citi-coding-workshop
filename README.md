@@ -315,6 +315,13 @@ and the per-increment notes in [changes/](./changes/). Known gaps:
 - The forecast is duration-based without resource levelling, has no holiday
   calendar, and is estimate-based rather than velocity-based
   (see [Completion forecast](#completion-forecast)).
+- One global role per person: a team lead can't be a plain member on another
+  project, and a PM can't lead someone else's project. Next step: a
+  `project_members` table (lead or member per project), with permission checks
+  against the project role instead of the global role.
+- No role for ordinary employees: people who only do the work get the viewer
+  role. Assignees can still update their own deliverables, because that rule
+  checks assignment, not role. A member role comes with per-project roles.
 
 ## Repository map
 
