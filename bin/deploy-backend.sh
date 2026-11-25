@@ -98,6 +98,19 @@ else
     terraform init -reconfigure
 fi
 
+# Gemini API key for the AI briefing (ai Lambda only): TF_VAR_gemini_api_key if
+# set, else ~/.gemini-key, else empty, which keeps the briefing off. Never printed.
+if [ -z "${TF_VAR_gemini_api_key+x}" ]; then
+    if [ -r "$HOME/.gemini-key" ]; then
+        TF_VAR_gemini_api_key="$(tr -d '[:space:]' < "$HOME/.gemini-key")"
+        echo "INFO: Gemini API key read from ~/.gemini-key"
+    else
+        TF_VAR_gemini_api_key=""
+        echo "INFO: No ~/.gemini-key: the AI briefing stays off"
+    fi
+    export TF_VAR_gemini_api_key
+fi
+
 # Apply Terraform configuration automatically
 terraform apply -auto-approve
 echo "INFO: Infrastructure deployment complete!"

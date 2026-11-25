@@ -45,7 +45,7 @@ ACME's fragmented tracking:
 ### 4. Testing
 | Requirement | Status | Evidence |
 | --- | --- | --- |
-| Unit and integration tests for business logic and API contracts | ✅ | 233 backend tests, the service ones against real PostgreSQL; the schedule engine is a pure function with hand-computed cases |
+| Unit and integration tests for business logic and API contracts | ✅ | 275 backend tests, the service ones against real PostgreSQL; the schedule engine is a pure function with hand-computed cases |
 | Frontend behaviour for core journeys and error states | ✅ | 272 Vitest tests; 28 Cypress tests |
 | Manual/automated validation end to end through persistence | ✅ | Cypress against the local stack; curl acceptance scripts |
 | Test artifacts documented | ✅ | README test table; `changes/phase*.md`; this file |
@@ -67,15 +67,15 @@ ACME's fragmented tracking:
 | Backend error-handling tests | ✅ | validation, 401/403/404/409/429 cases in every test file |
 | Frontend component tests (guide: Jest + RTL) | ✅ | Vitest + React Testing Library (Jest-compatible API) |
 | Frontend API tests with mocked responses | ✅ | `services/api.test.js`, `services/clients.test.js` |
-| End-to-end tests (Cypress or Selenium) | ✅ | `frontend/cypress/e2e/*` (28 tests) |
+| End-to-end tests (Cypress or Selenium) | ✅ | `frontend/cypress/e2e/*` (31 tests) |
 | Load testing (Artillery or JMeter) | ✅ | `tests/load/` scenario and runner. Local smoke: 548 requests, all 200, p95 36 ms. Cloud profile (`tests/load/run.sh cloud`, 2026-11-25, peak 20 new users per second): 6,340 requests, all 200, 0 failed virtual users, p95 55 ms, p99 518 ms (Lambda cold starts during the ramp). A local run at the cloud profile overloaded LocalStack (one container and DB connection per concurrent request), which is why the local profile is a smoke test |
 | Performance monitoring | 🟡 | CloudWatch duration reports used to size the auth Lambda (4.6 s → 0.55 s per login); no dashboards or alarms |
 
 ### Coverage goals
 | Goal | Target | Measured |
 | --- | --- | --- |
-| Backend | 80% | 96% lines+branches, 233 tests (gate in `backend/.coveragerc`) |
-| Frontend | 80% | 93% lines, 91% statements, 87% branches, 86% functions, 272 tests (gate in `vite.config.js`) |
+| Backend | 80% | 96% lines+branches, 275 tests (gate in `backend/.coveragerc`) |
+| Frontend | 80% | 93% lines, 91% statements, 87% branches, 86% functions, 288 tests (gate in `vite.config.js`) |
 | API endpoints, all CRUD | 90% | every service 92–99% (allocations 96, audit 98, auth 97, budget 93, dashboard 93, deliverables 99, projects 98, resources 93, users 92); every API client covered by `clients.test.js` |
 | Error handling | 90% | every error status has tests; remaining uncovered lines are mostly defensive branches (e.g. reconnect after a lost DB connection) |
 | Critical user paths, end to end | 100% | every path listed in the README is a Cypress test |
@@ -91,7 +91,8 @@ ACME's fragmented tracking:
 | Validation: required, formats, references, messages, malformed input | ✅ | |
 | API design: methods, status codes, JSON, consistent errors, filters | ✅ | Search/filter on every list |
 | Frontend: responsive, performance, state and feedback, accessibility | ✅ | Pages lazy-loaded; no chunk over 500 kB; light and dark mode, both checked by axe and by palette contrast tests |
-| Frontend: PWA, AI features | ❌ | Beyond the brief |
+| Frontend: AI features | ✅ (v2.1) | AI project briefing: Gemini (`gemini-3.5-flash`) writes a sponsor status report from the app's computed facts, each point citing its sources (ungrounded points dropped); signed facts from the projects service, model call from the `ai` Lambda outside the VPC; viewers excluded, 20 per user per hour. `test_briefing.py`, `test_briefing_api.py`, `BriefingCard.test.jsx`, Cypress `14-briefing` (axe in light and dark mode) |
+| Frontend: PWA | ❌ | Beyond the brief |
 | Auth: JWT, hashing, token on every endpoint, expiry **and refresh**, clear errors | ✅ | 15-minute access tokens; rotated HttpOnly refresh cookie; `token_expired` vs `invalid_token`. On the deployed site, `tests/acceptance/cloud_auth_check.sh` passed 11/11 (2026-11-25): cookie flags, rotation, old-token and post-logout refusal |
 | RBAC: roles, restricted endpoints, read-only roles, no escalation, consistent 403 | ✅ | Role re-read from the database on every request |
 | Admin manages users and roles | ✅ | Users page and `/api/users` |

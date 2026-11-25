@@ -1,0 +1,145 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import BriefingCard from './BriefingCard';
+import renderWithProviders from '../../test/renderWithProviders';
+import { ApiError } from '../../services/api';
+import { briefingText, generateBriefing } from '../../services/briefingApi';
+import { canGenerateBriefing } from '../../auth/permissions';
+
+vi.mock('../../services/briefingApi', async (original) => ({ ...(await original()), generateBriefing: vi.fn() }));
+
+const PROJECT = { id: 7, code: 'ACME-TRN', name: 'Transit app', status: 'active', owner_id: 2 };
+const LEAD = { id: 5, role: 'team_lead' };
+const BRIEFING = {
+  project_id: 7,
+  status: 'late',
+  headline: 'Two weeks late, driven by Integration.',
+  points: [
+    { text: 'The forecast is 14 days past the planned end.', sources: ['forecast'] },
+    { text: 'Integration and Security review set the date.', sources: ['critical_path', 'deliverable:11'] },
+  ],
+  actions: [{ text: 'Add a second engineer to Integration.', sources: ['deliverable:11'] }],
+  facts: [
+    { id: 'forecast', label: 'Forecast', text: 'Forecast to finish on 2027-01-01, 14 days after the planned end.' },
+    { id: 'critical_path', label: 'Critical path', text: 'Critical path: Integration → Security review.' },
+    { id: 'deliverable:11', label: 'Integration', text: 'Deliverable "Integration": in progress, progress 40%.' },
+  ],
+  model: 'gemini-3.5-flash',
+  generated_at: '2026-11-25T04:35:00+00:00',
+};
+
+const show = (user = LEAD) => renderWithProviders(<BriefingCard project={PROJECT} />, { user });
+
+afterEach(() => vi.clearAllMocks());
+
+describe('BriefingCard', () => {
+  it('generates a briefing on request and shows each point with its sources', async () => {
+    let resolve;
+    generateBriefing.mockReturnValue(new Promise((r) => { resolve = r; }));
+    show();
+    const card = screen.getByRole('region', { name: 'AI briefing' });
+    expect(within(card).getByText(/plain-English status report/)).toBeInTheDocument();
+    expect(generateBriefing).not.toHaveBeenCalled();             // never on its own: each one is a paid call
+
+    await userEvent.click(within(card).getByRole('button', { name: 'Generate AI briefing' }));
+    expect(generateBriefing).toHaveBeenCalledWith(7);
+    expect(within(card).getByRole('status')).toHaveTextContent('Asking the AI…');
+    expect(within(card).getByRole('button', { name: 'Generate AI briefing' })).toBeDisabled();
+
+    resolve(BRIEFING);
+    expect(await within(card).findByText('Two weeks late, driven by Integration.')).toBeInTheDocument();
+    expect(within(card).getByText('Late')).toBeInTheDocument();
+    const why = within(card).getByRole('list', { name: 'Why' });
+    expect(within(why).getAllByRole('listitem')).toHaveLength(2);
+    const steps = within(card).getByRole('list', { name: 'Next steps' });
+    expect(within(steps).getByText('Add a second engineer to Integration.')).toBeInTheDocument();
+    expect(within(card).getByText(/AI-generated \(gemini-3.5-flash\) from this project's data at/)).toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: 'Regenerate' })).toBeEnabled();
+  });
+
+  it('shows the exact data behind a source on hover and focus', async () => {
+    generateBriefing.mockResolvedValue(BRIEFING);
+    show();
+    await userEvent.click(screen.getByRole('button', { name: 'Generate AI briefing' }));
+    const chip = (await screen.findAllByText('Critical path'))[0].closest('[role="button"], .MuiChip-root');
+    await userEvent.hover(chip);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Critical path: Integration → Security review.');
+  });
+
+  it('copies the briefing as plain text', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue();
+    generateBriefing.mockResolvedValue(BRIEFING);
+    show();
+    await user.click(screen.getByRole('button', { name: 'Generate AI briefing' }));
+    await user.click(await screen.findByRole('button', { name: 'Copy' }));
+    expect(writeText).toHaveBeenCalledWith(briefingText(BRIEFING, 'ACME-TRN Transit app'));
+    expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument();
+  });
+
+  it.each([
+    [new ApiError(503, 'ai_unavailable', "The AI briefing isn't available right now"), "The AI briefing isn't available right now."],
+    [new ApiError(429, 'rate_limited', 'Too many', { retry_after: 1500 }), "You've reached the limit for AI briefings. Try again in 25 min."],
+    [new ApiError(429, 'ai_rate_limited', 'Busy'), "You've reached the limit for AI briefings. Try again in 1 min."],
+    [new ApiError(400, 'invalid_facts', 'expired'), 'The project data changed or expired before the briefing was ready. Try again.'],
+    [new ApiError(0, 'network_error', 'Could not reach the server'), 'Could not reach the server'],
+    [new Error(''), 'Something went wrong while asking for the briefing.'],
+  ])('explains a failure (%s) and lets the user try again', async (error, message) => {
+    generateBriefing.mockRejectedValueOnce(error).mockResolvedValueOnce(BRIEFING);
+    show();
+    await userEvent.click(screen.getByRole('button', { name: 'Generate AI briefing' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
+    await userEvent.click(screen.getByRole('button', { name: 'Generate AI briefing' }));
+    expect(await screen.findByText('Two weeks late, driven by Integration.')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  });
+
+  it('keeps the last briefing when regenerating fails', async () => {
+    generateBriefing.mockResolvedValueOnce(BRIEFING).mockRejectedValueOnce(new ApiError(503, 'ai_unavailable', 'Down'));
+    show();
+    await userEvent.click(screen.getByRole('button', { name: 'Generate AI briefing' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Regenerate' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Down.');
+    expect(screen.getByText('Two weeks late, driven by Integration.')).toBeInTheDocument();
+  });
+
+  it('shows a briefing without next steps and with an unknown status', async () => {
+    generateBriefing.mockResolvedValue({ ...BRIEFING, status: 'mystery', actions: [] });
+    show({ id: 1, role: 'admin' });
+    await userEvent.click(screen.getByRole('button', { name: 'Generate AI briefing' }));
+    expect(await screen.findByText('Two weeks late, driven by Integration.')).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Next steps' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Late')).not.toBeInTheDocument();
+  });
+
+  it('is hidden from viewers', () => {
+    show({ id: 9, role: 'viewer' });
+    expect(screen.queryByRole('region', { name: 'AI briefing' })).not.toBeInTheDocument();
+  });
+});
+
+describe('canGenerateBriefing', () => {
+  it('allows admins, project managers and team leads, not viewers', () => {
+    expect(['admin', 'project_manager', 'team_lead', 'viewer'].map((role) => canGenerateBriefing({ role })))
+      .toEqual([true, true, true, false]);
+    expect(canGenerateBriefing(null)).toBe(false);
+  });
+});
+
+describe('briefingText', () => {
+  it('writes the headline, points and numbered next steps', () => {
+    expect(briefingText(BRIEFING, 'ACME-TRN Transit app')).toBe([
+      'ACME-TRN Transit app: Two weeks late, driven by Integration.',
+      '',
+      '- The forecast is 14 days past the planned end.',
+      '- Integration and Security review set the date.',
+      '',
+      'Next steps:',
+      '1. Add a second engineer to Integration.',
+      '',
+      '(AI-generated from the project tracker; check before sharing.)',
+    ].join('\n'));
+    expect(briefingText({ ...BRIEFING, actions: [] }, 'X')).not.toContain('Next steps');
+  });
+});

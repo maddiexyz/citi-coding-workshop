@@ -27,6 +27,9 @@ Budgets (everyone may read a project's budget summary):
   (the owning PM should set its status to cancelled instead)
 
 Audit log: admin sees everything; the owning PM sees their projects' history.
+
+AI project briefings (each one is a paid model call):
+- admin, project managers and team leads, for any project; not viewers
 """
 
 from typing import Any
@@ -123,3 +126,8 @@ def can_update_deliverable_progress(user: Any, deliverable: dict, resource_id: A
         resource_id: The person (resource) linked to the user's account, or None.
     """
     return resource_id is not None and deliverable.get("assignee_resource_id") == resource_id
+
+
+def can_generate_briefing(user: Any) -> bool:
+    """Return True if the user may ask for an AI briefing of a project (not viewers: each one costs a model call)."""
+    return user.role in (ADMIN, PROJECT_MANAGER, TEAM_LEAD)

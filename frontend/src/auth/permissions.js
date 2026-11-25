@@ -134,3 +134,11 @@ export function canManageDepartments(user) {
 export function canUpdateDeliverableProgress(user, deliverable) {
   return user?.resource_id != null && deliverable.assignee_resource_id === user.resource_id;
 }
+
+/**
+ * @param {{role: string}|null} user
+ * @returns {boolean} True if the user may ask for an AI briefing (admin, project managers and team leads; not viewers).
+ */
+export function canGenerateBriefing(user) {
+  return ['admin', 'project_manager', 'team_lead'].includes(user?.role);
+}

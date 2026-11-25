@@ -94,3 +94,32 @@ variable "app_currency" {
     error_message = "The app_currency variable must be a three-letter ISO 4217 code such as USD or EUR."
   }
 }
+
+variable "ai_enabled" {
+  description = "Turn on the AI project briefing (the ai Lambda calls the Gemini API). Default: false."
+  type        = bool
+  default     = false
+}
+
+variable "ai_provider" {
+  description = "Model provider for AI project briefings. Only gemini is supported."
+  type        = string
+  default     = "gemini"
+
+  validation {
+    condition     = var.ai_provider == "gemini"
+    error_message = "ai_provider must be gemini."
+  }
+}
+
+variable "ai_model_id" {
+  description = "Gemini model used for AI project briefings. Default: gemini-3.5-flash."
+  type        = string
+  default     = "gemini-3.5-flash"
+}
+
+variable "gemini_api_key" {
+  description = "Gemini API key for the ai Lambda. bin/deploy-backend.sh reads it from ~/.gemini-key (empty: AI off); never commit it."
+  type        = string
+  sensitive   = true
+}

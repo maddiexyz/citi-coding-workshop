@@ -108,6 +108,8 @@ tests/acceptance/cloud_auth_check.sh
 | Budget service | `backend/budget/` → `/api/budget` | `GET /summary?project_id` (everyone); spend entries CRUD (admin, owning PM; delete admin) with `?category&from&to&q` |
 | Audit service | `backend/audit/` → `/api/audit` | Change history `?project_id&entity_type&entity_id&actor&from&to&limit` (admin; owning PM for their project) |
 | Audit helper | `backend/_common/audit.py` | `audit.record(...)` inside `db.transaction()` next to every write |
+| AI service | `backend/ai/` → `/api/ai` | `POST /briefing` (v2.1): checks the signed facts and asks Gemini; the only Lambda outside the VPC, with no database settings |
+| Briefing facts | `backend/_common/briefing.py` | Facts, overall status, HMAC signing and the reply check (pure); `POST /api/projects/{id}/briefing-facts` builds and signs them |
 | Frontend | `frontend/src/` | `services/` API calls, `auth/` session and rules, `pages/`, `components/` |
 
 Each folder directly under `backend/` with a `requirements.txt` becomes its own
@@ -253,6 +255,44 @@ reason for it.
   deliverables list and chain, *Forecast end* in the projects list, and the
   *Timeline* tab (SVG Gantt, table view, list on mobile).
 
+### AI project briefing (v2.1)
+- *Generate AI briefing* on the project Overview (admin, project managers,
+  team leads; `can_generate_briefing`, mirrored in the frontend). Nothing
+  happens on page load: each briefing is a paid model call.
+- **Step 1, inside the VPC:** `POST /api/projects/{id}/briefing-facts` checks
+  the role and the limit (20 per user per hour: `ai_usage`, migration
+  `010_ai_usage.sql`; 429 with `Retry-After`), then builds the facts with
+  `common.briefing.facts` from the project row, the forecast, the risk
+  reasons and the open deliverables (at most 25). Each fact has a stable id
+  (`project`, `forecast`, `critical_path`, `spi`, `budget`, `risk:<type>`,
+  `deliverable:<id>`); names and emails are left out. The overall status
+  comes from `briefing.status_of`. The response is `{bundle, token}`: the
+  token is an HMAC (a key derived from `JWT_SECRET`) over the bundle, the user
+  id and an expiry two minutes ahead.
+- **Step 2, outside the VPC:** `POST /api/ai/briefing` with that body. The
+  `ai` Lambda checks the access token (signature and expiry: it has no
+  database) and the HMAC (400 `invalid_facts` if the facts were changed,
+  are for another user or expired), then calls Gemini's `generateContent`
+  for `gemini-3.5-flash` (`AI_MODEL_ID`) with `urllib` (no SDK): a fixed
+  system instruction, the facts as JSON, `responseMimeType`
+  `application/json` with `responseJsonSchema`, temperature 0.2, thinking
+  level LOW, timeout 20 s. The key is sent only in the `x-goog-api-key`
+  header, never in the URL, and is never logged. `briefing.parse` keeps only
+  points and actions that cite known fact ids (at most 5 points, 3 actions).
+- **Errors:** 503 `ai_unavailable` when AI is off, the key is missing, the
+  prompt or answer was blocked (`promptFeedback.blockReason`, a
+  `finishReason` other than `STOP`), there was no candidate, the JSON was
+  invalid or nothing grounded was left, or the API failed or timed out; 429
+  `ai_rate_limited` when Gemini answers HTTP 429. Each call logs
+  one JSON line (user, project, model, tokens, latency, outcome); the
+  briefing itself is not stored.
+- **Settings** (Terraform, `ai` function only): `ai_enabled` (default false),
+  `ai_provider` (`gemini`), `ai_model_id`, and `gemini_api_key` (sensitive,
+  no default; `bin/deploy-backend.sh` reads it from `~/.gemini-key`, or sets
+  it empty, which keeps AI off). The Lambda sees them as `AI_ENABLED`,
+  `AI_PROVIDER`, `AI_MODEL_ID` and `GEMINI_API_KEY`. `infra/locals.tf` lists `no_vpc_functions`;
+  those get no VPC config and no `POSTGRES_*`/`MONGO_*` settings.
+
 ### Sign-in, sessions and users
 
 - **Access token:** a 15-minute JWT in the `Authorization` header, kept in
@@ -335,6 +375,13 @@ status to *completed* or *cancelled*; use delete only to remove mistakes.
 - **No role for ordinary employees.** People who only do the work get the
   viewer role. Assignees can still update their own deliverables, because that
   rule checks assignment, not role. A member role comes with per-project roles.
+- **The AI briefing needs a Lambda outside the VPC.** The VPC has no NAT
+  gateway or endpoint for the model API, and Bedrock isn't granted to the
+  workshop role, so the `ai` Lambda runs outside it and the projects service
+  signs the facts it may use. The Gemini key sits in that Lambda's
+  settings and the Terraform state (never in the repo); on the free tier
+  Google may use the inputs to improve its products, so no personal data is
+  sent; Secrets Manager would be the next step.
 - **Compiled dependencies** (`bcrypt`, `psycopg[binary]`) must match the
   Lambda runtime (Python 3.13, x86_64). `start-dev.sh` installs wheels for that
   target; for AWS, Terraform's Lambda module builds with the `python3.13`

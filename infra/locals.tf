@@ -95,6 +95,15 @@ locals {
     }
   ]
   origin_id = format("%s-s3-origin-%s", var.aws_project, local.app_id)
+  # Functions outside the VPC: they reach the internet (the model API) but not
+  # the database, so they get no database settings either
+  no_vpc_functions = ["ai"]
+  ai_env_vars = {
+    AI_ENABLED     = var.ai_enabled ? "true" : "false"
+    AI_PROVIDER    = var.ai_provider
+    AI_MODEL_ID    = var.ai_model_id
+    GEMINI_API_KEY = var.gemini_api_key
+  }
   env_vars = {
     APP_ID        = local.app_id
     APP_NAME      = format("%s-%s", var.aws_project, local.app_id)

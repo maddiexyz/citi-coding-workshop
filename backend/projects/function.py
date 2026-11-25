@@ -5,6 +5,8 @@ Routes (served at /api/projects; every route needs a Bearer token):
     GET    /             ?status&q&department_id&owner=me&team_lead=me -> {"items": [...]}
     GET    /{id}                               -> project
     GET    /{id}/forecast                      -> completion forecast (critical path, confidence, SPI)
+    POST   /{id}/briefing-facts                -> {"bundle", "token"}: the signed facts for an AI briefing
+                                                  (admin, project managers, team leads; 20 per user per hour)
     POST   /             project fields        -> 201 project
     PUT    /{id}         project fields        -> project
     DELETE /{id}                               -> 204
@@ -23,12 +25,13 @@ from decimal import Decimal
 
 from psycopg import errors
 
-from common import audit, db, forecast
+from common import audit, briefing, db, forecast, risk
 from common.auth import me_filter, require_auth
 from common.http import ApiError, Request, json_response, make_handler, parse_id
-from common.permissions import can_change_project, can_create_project, can_delete_project
+from common.permissions import can_change_project, can_create_project, can_delete_project, can_generate_briefing
 from common.validation import Validator
 
+BRIEFINGS_PER_HOUR = 20
 PROJECT_STATUSES = ("planned", "active", "on_hold", "completed", "cancelled")
 CODE_PATTERN = r"[A-Z0-9][A-Z0-9-]{1,19}"
 
@@ -131,6 +134,46 @@ def get_forecast(_request: Request, project_id: str) -> dict:
                                **result})
 
 
+def check_briefing_limit(user_id: int) -> None:
+    """429 once the user has had BRIEFINGS_PER_HOUR briefings in the last hour."""
+    row = db.fetch_one(
+        "SELECT count(*) AS n, min(created_at) AS oldest FROM ai_usage"
+        " WHERE user_id = %s AND created_at > now() - interval '1 hour'", (user_id,))
+    if row["n"] >= BRIEFINGS_PER_HOUR:
+        wait = db.fetch_one("SELECT GREATEST(1, ceil(extract(epoch FROM %s + interval '1 hour' - now())))::int AS s",
+                            (row["oldest"],))["s"]
+        raise ApiError(429, "rate_limited",
+                       f"You can ask for {BRIEFINGS_PER_HOUR} AI briefings an hour; try again in "
+                       f"{max(1, round(wait / 60))} min", {"retry_after": wait}, headers={"Retry-After": str(wait)})
+
+
+@require_auth
+def get_briefing_facts(request: Request, project_id: str) -> dict:
+    """
+    The facts an AI briefing of this project may use, signed for the caller.
+
+    The browser passes them on to POST /api/ai/briefing, which runs outside the
+    VPC (so it can reach the model API) and has no database: the signature
+    proves the facts came from here, unchanged, for this user, in the last two minutes.
+    """
+    project = find_project(parse_id(project_id, "Project id"))
+    if not can_generate_briefing(request.user):
+        raise ApiError(403, "forbidden", "Viewers can't ask for AI briefings")
+    check_briefing_limit(request.user.id)
+    today = db.today()
+    outlook = forecast.for_projects([project], today)[project["id"]]
+    evaluated = risk.evaluate([project["id"]])     # only active (or started) projects are evaluated
+    reasons = evaluated[0]["risk_reasons"] if evaluated else []
+    deliverables = db.fetch_all(
+        "SELECT id, title, status, due_date, estimate_days, progress_pct, assignee_resource_id, is_blocked,"
+        " is_overdue FROM deliverable_details WHERE project_id = %s ORDER BY id", (project["id"],))
+    bundle = {"project_id": project["id"], "project_code": project["code"],
+              "status": briefing.status_of(project, outlook, reasons),
+              "facts": briefing.facts(project, outlook, reasons, deliverables, today)}
+    db.execute("INSERT INTO ai_usage (user_id, project_id) VALUES (%s, %s)", (request.user.id, project["id"]))
+    return json_response(200, {"bundle": bundle, "token": briefing.sign(bundle, request.user.id)})
+
+
 def project_row(project_id: int) -> dict:
     """The stored project record (without computed fields), as written to the audit log."""
     return db.fetch_one("SELECT * FROM projects WHERE id = %s", (project_id,))
@@ -231,6 +274,7 @@ handler = make_handler([
     ("POST", "/", create_project),
     ("GET", "/{project_id}", get_project),
     ("GET", "/{project_id}/forecast", get_forecast),
+    ("POST", "/{project_id}/briefing-facts", get_briefing_facts),
     ("PUT", "/{project_id}", update_project),
     ("DELETE", "/{project_id}", delete_project),
 ])

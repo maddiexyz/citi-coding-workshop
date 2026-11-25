@@ -22,6 +22,7 @@ import ActivityPanel from '../components/audit/ActivityPanel';
 import BudgetPanel from '../components/budget/BudgetPanel';
 import DeliverablesPanel from '../components/deliverables/DeliverablesPanel';
 import ForecastCard from '../components/forecast/ForecastCard';
+import BriefingCard from '../components/briefing/BriefingCard';
 import TimelinePanel from '../components/forecast/TimelinePanel';
 import projectShape from '../components/projectPropTypes';
 import { getProject } from '../services/projectsApi';
@@ -80,6 +81,7 @@ function Overview({ project }) {
         )}
       </Box>
       <ForecastCard project={project} />
+      <BriefingCard project={project} />
     </Stack>
   );
 }
