@@ -96,20 +96,30 @@ variable "app_currency" {
 }
 
 variable "ai_enabled" {
-  description = "Turn on the AI project briefing (the ai Lambda calls the Anthropic API). Default: false."
+  description = "Turn on the AI project briefing (the ai Lambda calls the Gemini API). Default: false."
   type        = bool
   default     = false
 }
 
-variable "ai_model_id" {
-  description = "Claude model used for AI project briefings. Default: claude-haiku-5-5."
+variable "ai_provider" {
+  description = "Model provider for AI project briefings. Only gemini is supported."
   type        = string
-  default     = "claude-haiku-5-5"
+  default     = "gemini"
+
+  validation {
+    condition     = var.ai_provider == "gemini"
+    error_message = "ai_provider must be gemini."
+  }
 }
 
-variable "anthropic_api_key" {
-  description = "Anthropic API key for the ai Lambda; set it with TF_VAR_anthropic_api_key, never commit it. Empty: AI off."
+variable "ai_model_id" {
+  description = "Gemini model used for AI project briefings. Default: gemini-3.5-flash."
   type        = string
-  default     = ""
+  default     = "gemini-3.5-flash"
+}
+
+variable "gemini_api_key" {
+  description = "Gemini API key for the ai Lambda. bin/deploy-backend.sh reads it from ~/.gemini-key (empty: AI off); never commit it."
+  type        = string
   sensitive   = true
 }

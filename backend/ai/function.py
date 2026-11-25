@@ -14,10 +14,14 @@ service's signature, which binds them to that user for two minutes. Every
 point the model writes must cite the facts it was given; points that don't
 are dropped (see common.briefing.parse).
 
-Settings: AI_ENABLED ("true" to turn it on), ANTHROPIC_API_KEY, AI_MODEL_ID
-(default claude-haiku-5-5). Errors: 400 bad or expired facts, 401, 403,
-429 when the model API is rate limited, 503 when AI is off or the model
-can't answer.
+The model is Google Gemini, called through its REST API (generateContent)
+with the standard library only. The key travels in the x-goog-api-key
+header, never in the URL, and is never logged.
+
+Settings: AI_ENABLED ("true" to turn it on), AI_PROVIDER (must be "gemini"),
+GEMINI_API_KEY, AI_MODEL_ID (default gemini-3.5-flash). Errors: 400 bad or
+expired facts, 401, 403, 429 when the model API is rate limited, 503 when AI
+is off or the model can't answer.
 """
 
 import json
@@ -25,8 +29,9 @@ import logging
 import os
 import time
 from datetime import datetime, timezone
-
-import anthropic
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote
+from urllib.request import Request as HttpRequest, urlopen
 
 from common.auth import CurrentUser, decode_token
 from common.briefing import REPLY_SCHEMA, BriefingError, parse, verify
@@ -36,8 +41,12 @@ from common.permissions import can_generate_briefing
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-DEFAULT_MODEL = "claude-haiku-5-5"
-MAX_TOKENS = 2000
+PROVIDER = "gemini"
+API_BASE = "https://generativelanguage.googleapis.com/v1beta"
+DEFAULT_MODEL = "gemini-3.5-flash"
+TIMEOUT_SECONDS = 20                 # CloudFront waits at most 30 s
+MAX_OUTPUT_TOKENS = 2000
+TEMPERATURE = 0.2
 
 SYSTEM_PROMPT = """You write short status briefings about one project for its sponsor, a busy \
 manager who wants to know where the project stands and what to do next.
@@ -55,14 +64,10 @@ the facts that motivate it. If the project is complete or nothing needs doing, g
 - Plain English, no jargon beyond "critical path", about 150 words in total."""
 
 
-def make_client() -> anthropic.Anthropic:
-    """The model API client (tests replace this). Fails fast: CloudFront waits at most 30 s."""
-    return anthropic.Anthropic(timeout=25, max_retries=1)
-
-
 def ai_enabled() -> bool:
-    """True when AI is switched on and a key is configured."""
-    return os.getenv("AI_ENABLED", "").lower() == "true" and bool(os.getenv("ANTHROPIC_API_KEY"))
+    """True when AI is switched on, the provider is Gemini and a key is configured."""
+    return (os.getenv("AI_ENABLED", "").lower() == "true" and os.getenv("AI_PROVIDER", PROVIDER) == PROVIDER
+            and bool(os.getenv("GEMINI_API_KEY", "").strip()))
 
 
 def unavailable(message: str = "The AI briefing isn't available right now") -> ApiError:
@@ -78,40 +83,80 @@ def authenticate(request: Request) -> CurrentUser:
     return decode_token(token.strip())
 
 
+def request_body(fact_list: list[dict]) -> dict:
+    """The generateContent request: system instruction, the facts as JSON, and a JSON reply schema."""
+    return {
+        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "contents": [{"role": "user", "parts": [{"text": "Facts:\n" + json.dumps(fact_list, ensure_ascii=False)}]}],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "responseJsonSchema": REPLY_SCHEMA,
+            "temperature": TEMPERATURE,
+            "maxOutputTokens": MAX_OUTPUT_TOKENS,
+            "thinkingConfig": {"thinkingLevel": "LOW"},
+        },
+    }
+
+
+def post_json(url: str, body: dict, key: str) -> dict:
+    """POST JSON to the Gemini API and decode the reply (the key only in the header)."""
+    request = HttpRequest(url, data=json.dumps(body).encode(), method="POST",
+                          headers={"content-type": "application/json", "x-goog-api-key": key})
+    # The URL is the fixed https API_BASE plus the model name: no user-controlled scheme (B310)
+    with urlopen(request, timeout=TIMEOUT_SECONDS) as response:  # nosec B310
+        return json.loads(response.read())
+
+
+def reply_text(data: dict) -> str:
+    """
+    The text of the first candidate.
+
+    Raises:
+        BriefingError: the prompt or reply was blocked, there is no candidate, or it stopped early.
+    """
+    block = (data.get("promptFeedback") or {}).get("blockReason")
+    if block:
+        raise BriefingError(f"The request was blocked ({block})")
+    candidates = data.get("candidates") or []
+    if not candidates:
+        raise BriefingError("The model returned no answer")
+    finish = candidates[0].get("finishReason")
+    if finish != "STOP":
+        raise BriefingError(f"The model stopped early ({finish})")
+    parts = (candidates[0].get("content") or {}).get("parts") or []
+    text = "".join(p.get("text", "") for p in parts if not p.get("thought"))
+    if not text.strip():
+        raise BriefingError("The model returned an empty answer")
+    return text
+
+
 def ask_model(fact_list: list[dict], model: str) -> tuple[str, dict]:
     """
-    Ask the model for a briefing of these facts.
+    Ask Gemini for a briefing of these facts.
 
     Returns:
         (the reply text, which the schema makes JSON; usage figures for the log).
 
     Raises:
-        ApiError: 429 when the model API is rate limited, 503 for anything else that stops an answer.
+        ApiError: 429 when the model API is rate limited, 503 for other API errors and timeouts.
+        BriefingError: blocked, empty or cut-short answers.
     """
+    url = f"{API_BASE}/models/{quote(model, safe='.-_')}:generateContent"
     try:
-        response = make_client().messages.create(
-            model=model,
-            max_tokens=MAX_TOKENS,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": "Facts:\n" + json.dumps(fact_list, ensure_ascii=False)}],
-            output_config={"format": {"type": "json_schema", "schema": REPLY_SCHEMA}},
-        )
-    except anthropic.RateLimitError as exc:
-        raise ApiError(429, "ai_rate_limited", "The AI service is busy; try again in a minute",
-                       {"retry_after": 60}, headers={"Retry-After": "60"}) from exc
-    except anthropic.APIStatusError as exc:
-        logger.error(json.dumps({"event": "briefing_api_error", "status": exc.status_code,
-                                 "request_id": getattr(exc, "request_id", None)}))
+        data = post_json(url, request_body(fact_list), os.environ["GEMINI_API_KEY"].strip())
+    except HTTPError as exc:
+        if exc.code == 429:
+            raise ApiError(429, "ai_rate_limited", "The AI service is busy; try again in a minute",
+                           {"retry_after": 60}, headers={"Retry-After": "60"}) from exc
+        logger.error(json.dumps({"event": "briefing_api_error", "status": exc.code}))
         raise unavailable() from exc
-    except anthropic.APIConnectionError as exc:      # includes timeouts
+    except (URLError, TimeoutError, OSError, ValueError) as exc:      # network, timeout, non-JSON body
         logger.error(json.dumps({"event": "briefing_connection_error", "error": type(exc).__name__}))
         raise unavailable() from exc
-    usage = {"input_tokens": response.usage.input_tokens, "output_tokens": response.usage.output_tokens,
-             "stop_reason": response.stop_reason}
-    if response.stop_reason != "end_turn":           # refusal, max_tokens, ...
-        raise BriefingError(f"The model stopped early ({response.stop_reason})")
-    text = next((block.text for block in response.content if block.type == "text"), "")
-    return text, usage
+    meta = data.get("usageMetadata") or {}
+    usage = {"input_tokens": meta.get("promptTokenCount"), "output_tokens": meta.get("candidatesTokenCount"),
+             "thought_tokens": meta.get("thoughtsTokenCount"), "model_version": data.get("modelVersion")}
+    return reply_text(data), usage
 
 
 def create_briefing(request: Request) -> dict:
@@ -130,7 +175,8 @@ def create_briefing(request: Request) -> dict:
 
     model = os.getenv("AI_MODEL_ID") or DEFAULT_MODEL
     started = time.monotonic()
-    log = {"event": "briefing", "user_id": user.id, "project_id": bundle.get("project_id"), "model": model}
+    log = {"event": "briefing", "provider": PROVIDER, "user_id": user.id,
+           "project_id": bundle.get("project_id"), "model": model}
     try:
         text, usage = ask_model(bundle["facts"], model)
         log.update(usage)

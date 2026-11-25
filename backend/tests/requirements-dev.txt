@@ -3,7 +3,6 @@
 bcrypt==5.0.0
 psycopg[binary]>=3.2.10
 PyJWT==2.15.1
-anthropic==2.14.0
 pytest==8.4.2
 pytest-cov==7.1.0
 flake8==7.5.0

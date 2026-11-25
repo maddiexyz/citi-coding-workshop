@@ -99,9 +99,10 @@ locals {
   # the database, so they get no database settings either
   no_vpc_functions = ["ai"]
   ai_env_vars = {
-    AI_ENABLED        = var.ai_enabled ? "true" : "false"
-    AI_MODEL_ID       = var.ai_model_id
-    ANTHROPIC_API_KEY = var.anthropic_api_key
+    AI_ENABLED     = var.ai_enabled ? "true" : "false"
+    AI_PROVIDER    = var.ai_provider
+    AI_MODEL_ID    = var.ai_model_id
+    GEMINI_API_KEY = var.gemini_api_key
   }
   env_vars = {
     APP_ID        = local.app_id

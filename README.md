@@ -21,7 +21,7 @@ guides are in [docs/README.md](./docs/README.md) and the rubric is
 | What is the dependency chain between deliverables? | Project → Deliverables → *Chain* (the whole chain, blocked and overdue highlighted); cycles are rejected |
 | How much budget has been consumed versus planned? | Project → *Budget* in ₹ (planned, spent, remaining, burn %, by category); burn in the projects list |
 | When will each project really finish? (the brief's "difficulty in forecasting project completion dates") | Project → *Overview* → *Completion forecast* and → *Timeline*; *Forecast end* in the projects list; a late forecast is an at-risk reason on the Dashboard. See [Completion forecast](#completion-forecast) |
-| What should I tell the sponsor, and what do we do next? | Project → *Overview* → *AI briefing*: a short status report written by Claude from the project's own data, every point showing its source. See [AI project briefing](#ai-project-briefing) |
+| What should I tell the sponsor, and what do we do next? | Project → *Overview* → *AI briefing*: a short status report written by Gemini from the project's own data, every point showing its source. See [AI project briefing](#ai-project-briefing) |
 
 ## Completion forecast
 
@@ -77,7 +77,7 @@ Limitations:
 ## AI project briefing
 
 v2.1. On a project's Overview, admins, project managers and team leads can
-press **Generate AI briefing**. Claude (Haiku 5.5) writes a short status report
+press **Generate AI briefing**. Google Gemini (`gemini-3.5-flash`) writes a short status report
 for a sponsor: a headline, why the project is where it is, and up to three
 next steps. Every point carries chips for the facts it rests on (*Forecast*,
 *Critical path*, *Budget*, a deliverable…); hovering or focusing a chip shows
@@ -91,21 +91,29 @@ the exact data. *Copy* puts it on the clipboard as plain text.
 - **No personal data.** Person names and emails are not sent; a deliverable
   is only "assigned" or "unassigned". Deliverable titles are user text, so the
   prompt tells the model to treat the facts as data, not instructions, and the
-  reply is held to a JSON schema.
+  reply is held to a JSON schema. What is sent: the project's code, name and
+  dates, the forecast, SPI, budget figures, risk messages, and the titles,
+  status, progress, estimates and dates of open deliverables.
+- **Free-tier data note.** On Gemini's free tier, Google may use what is sent
+  and returned to improve its products, and human reviewers may read it; on
+  the paid tier it doesn't. That is one more reason no personal data is sent;
+  use a paid-tier key for anything confidential.
 - **Two steps, because of the network.** The Lambdas sit in a VPC with no
   route to the internet, and the database is only reachable from inside it.
   So the projects service (inside) builds the facts and signs them with an
   HMAC bound to the user and valid for two minutes:
   `POST /api/projects/{id}/briefing-facts`. The new `ai` service, the only
   Lambda outside the VPC and with no database settings, checks the signature
-  and calls the Anthropic API: `POST /api/ai/briefing`. Facts can't be edited
+  and calls the Gemini API (`generateContent`, standard library only, the key
+  in the `x-goog-api-key` header, never in the URL or the logs):
+  `POST /api/ai/briefing`. Facts can't be edited
   in the browser or replayed by someone else.
 - **Cost control.** Only made on request, never on page load; 20 briefings
   per user per hour (429 after that, counted in `ai_usage`); viewers can't ask
-  for one. A briefing is a few thousand tokens on Haiku 5.5, about $0.0005.
+  for one. A briefing is a few thousand tokens on a Flash model.
   Nothing generated is stored.
-- **Off by default.** It needs `TF_VAR_ai_enabled=true` and an Anthropic API
-  key at deploy time (see [Deploy to AWS](#deploy-to-aws)). Without them the
+- **Off by default.** It needs `TF_VAR_ai_enabled=true` and a Gemini API key
+  in `~/.gemini-key` at deploy time (see [Deploy to AWS](#deploy-to-aws)). Without them the
   card says the briefing isn't available and nothing else changes.
 
 Limitations:
@@ -127,7 +135,7 @@ graph LR
     CF -->|/api/{service}| L["Lambda per service<br/>auth · projects · deliverables · resources<br/>allocations · budget · audit · users · dashboard"]
     L --> DB[("Aurora PostgreSQL<br/>(local: PostgreSQL :5432)")]
     CF -->|/api/ai| AI["ai Lambda<br/>(outside the VPC, no database)"]
-    AI --> Claude["Anthropic API<br/>Claude Haiku 5.5"]
+    AI --> Gemini["Gemini API<br/>gemini-3.5-flash"]
     M["Private migrate Lambda<br/>(no URL)"] --> DB
 ```
 
@@ -283,16 +291,18 @@ read -rsp "Admin password: " ADMIN_PASSWORD && echo && export ADMIN_PASSWORD
 ./bin/deploy-frontend.sh     # React build → S3 (stale files removed) → CloudFront
 ```
 
-To switch the AI briefing on, add these before `deploy-backend.sh` (the key is
-typed, never saved or committed; it ends up in the Lambda's settings and the
-Terraform state):
+To switch the AI briefing on, put a Gemini API key in `~/.gemini-key` (outside
+the repo, readable only by you) and enable it before `deploy-backend.sh`. The
+script reads the key from that file without printing it; it ends up in the
+`ai` Lambda's settings and the Terraform state, never in the repo:
 
 ```sh
-read -rsp "Anthropic API key: " TF_VAR_anthropic_api_key && echo && export TF_VAR_anthropic_api_key
-export TF_VAR_ai_enabled=true            # TF_VAR_ai_model_id=... to use another Claude model
+read -rsp "Gemini API key: " k && echo && (umask 077; printf %s "$k" > ~/.gemini-key) && unset k
+export TF_VAR_ai_enabled=true            # TF_VAR_ai_model_id=... for another Gemini model
 ```
 
-Deploying again without them switches it off.
+Deploying again without `TF_VAR_ai_enabled=true` (or without the key file)
+switches it off.
 
 Both scripts are safe to repeat: a second `deploy-backend.sh` reports *No
 changes*, no migrations and an existing admin. Never run
@@ -450,7 +460,7 @@ is listed at the top of its `backend/<service>/function.py`.
 | `v1.1` | The API demo-data seeder (`tests/seed`), the cloud seed, sign-in check and load test results, and a read-only audit against the rubric | [changes/seed_data.md](./changes/seed_data.md), [docs/AUDIT.md](./docs/AUDIT.md) |
 | `v1.2` | The audit's five fixes, all deployed (listed below) | [changes/post_audit.md](./changes/post_audit.md) |
 | `v2.0` | Completion-date forecasting: estimates and progress on deliverables, critical-path forecast with confidence and SPI, late-forecast risk reason, *Forecast end* in the projects list, Timeline tab, seeded forecast demo | [Completion forecast](#completion-forecast), [changes/phaseF.md](./changes/phaseF.md) |
-| `v2.1` | AI project briefing (Claude Haiku 5.5, grounded in the app's facts, sources shown), the `ai` Lambda outside the VPC, using the API with curl | [AI project briefing](#ai-project-briefing), [changes/phaseG.md](./changes/phaseG.md) |
+| `v2.1` | AI project briefing (Gemini Flash, grounded in the app's facts, sources shown), the `ai` Lambda outside the VPC, using the API with curl | [AI project briefing](#ai-project-briefing), [changes/phaseG.md](./changes/phaseG.md) |
 
 What changed in `v1.2`:
 - **Error boundary.** A page that fails to render or load shows *Something

@@ -13,7 +13,7 @@ const reply = (bundle) => ({
     { text: 'The build sets the date.', sources: ['critical_path'] }],
   actions: [{ text: 'Split the build.', sources: ['critical_path'] }],
   facts: bundle.facts,
-  model: 'claude-haiku-5-5',
+  model: 'gemini-3.5-flash',
   generated_at: new Date().toISOString(),
 });
 

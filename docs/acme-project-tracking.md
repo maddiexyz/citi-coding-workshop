@@ -108,7 +108,7 @@ tests/acceptance/cloud_auth_check.sh
 | Budget service | `backend/budget/` → `/api/budget` | `GET /summary?project_id` (everyone); spend entries CRUD (admin, owning PM; delete admin) with `?category&from&to&q` |
 | Audit service | `backend/audit/` → `/api/audit` | Change history `?project_id&entity_type&entity_id&actor&from&to&limit` (admin; owning PM for their project) |
 | Audit helper | `backend/_common/audit.py` | `audit.record(...)` inside `db.transaction()` next to every write |
-| AI service | `backend/ai/` → `/api/ai` | `POST /briefing` (v2.1): checks the signed facts and asks Claude; the only Lambda outside the VPC, with no database settings |
+| AI service | `backend/ai/` → `/api/ai` | `POST /briefing` (v2.1): checks the signed facts and asks Gemini; the only Lambda outside the VPC, with no database settings |
 | Briefing facts | `backend/_common/briefing.py` | Facts, overall status, HMAC signing and the reply check (pure); `POST /api/projects/{id}/briefing-facts` builds and signs them |
 | Frontend | `frontend/src/` | `services/` API calls, `auth/` session and rules, `pages/`, `components/` |
 
@@ -272,18 +272,25 @@ reason for it.
 - **Step 2, outside the VPC:** `POST /api/ai/briefing` with that body. The
   `ai` Lambda checks the access token (signature and expiry: it has no
   database) and the HMAC (400 `invalid_facts` if the facts were changed,
-  are for another user or expired), then calls `claude-haiku-5-5`
-  (`AI_MODEL_ID`) with a fixed system prompt, the facts as JSON and a JSON
-  schema for the reply; timeout 25 s, one retry. `briefing.parse` keeps only
+  are for another user or expired), then calls Gemini's `generateContent`
+  for `gemini-3.5-flash` (`AI_MODEL_ID`) with `urllib` (no SDK): a fixed
+  system instruction, the facts as JSON, `responseMimeType`
+  `application/json` with `responseJsonSchema`, temperature 0.2, thinking
+  level LOW, timeout 20 s. The key is sent only in the `x-goog-api-key`
+  header, never in the URL, and is never logged. `briefing.parse` keeps only
   points and actions that cite known fact ids (at most 5 points, 3 actions).
 - **Errors:** 503 `ai_unavailable` when AI is off, the key is missing, the
-  model refused, ran out of tokens, returned nothing grounded, or the API
-  failed; 429 `ai_rate_limited` when the model API is busy. Each call logs
+  prompt or answer was blocked (`promptFeedback.blockReason`, a
+  `finishReason` other than `STOP`), there was no candidate, the JSON was
+  invalid or nothing grounded was left, or the API failed or timed out; 429
+  `ai_rate_limited` when Gemini answers HTTP 429. Each call logs
   one JSON line (user, project, model, tokens, latency, outcome); the
   briefing itself is not stored.
 - **Settings** (Terraform, `ai` function only): `ai_enabled` (default false),
-  `ai_model_id`, and `anthropic_api_key` (sensitive, from
-  `TF_VAR_anthropic_api_key`). `infra/locals.tf` lists `no_vpc_functions`;
+  `ai_provider` (`gemini`), `ai_model_id`, and `gemini_api_key` (sensitive,
+  no default; `bin/deploy-backend.sh` reads it from `~/.gemini-key`, or sets
+  it empty, which keeps AI off). The Lambda sees them as `AI_ENABLED`,
+  `AI_PROVIDER`, `AI_MODEL_ID` and `GEMINI_API_KEY`. `infra/locals.tf` lists `no_vpc_functions`;
   those get no VPC config and no `POSTGRES_*`/`MONGO_*` settings.
 
 ### Sign-in, sessions and users
@@ -371,8 +378,10 @@ status to *completed* or *cancelled*; use delete only to remove mistakes.
 - **The AI briefing needs a Lambda outside the VPC.** The VPC has no NAT
   gateway or endpoint for the model API, and Bedrock isn't granted to the
   workshop role, so the `ai` Lambda runs outside it and the projects service
-  signs the facts it may use. The Anthropic key sits in that Lambda's
-  settings and the Terraform state; Secrets Manager would be the next step.
+  signs the facts it may use. The Gemini key sits in that Lambda's
+  settings and the Terraform state (never in the repo); on the free tier
+  Google may use the inputs to improve its products, so no personal data is
+  sent; Secrets Manager would be the next step.
 - **Compiled dependencies** (`bcrypt`, `psycopg[binary]`) must match the
   Lambda runtime (Python 3.13, x86_64). `start-dev.sh` installs wheels for that
   target; for AWS, Terraform's Lambda module builds with the `python3.13`

@@ -15,12 +15,15 @@ features; the rubric lists "Intelligent features with AI integration".
    user per hour (migration `010_ai_usage.sql`); returns the facts and an HMAC
    token bound to the user for two minutes.
 3. **The `ai` service** (`backend/ai/`, `POST /api/ai/briefing`): checks the
-   access token and the HMAC, asks `claude-haiku-5-5` for JSON against a
-   schema, and keeps only points and actions that cite known facts.
+   access token and the HMAC, asks Gemini (`gemini-3.5-flash`, through the
+   REST `generateContent` API with `urllib`, no SDK) for JSON against a
+   schema, and keeps only points and actions that cite known facts. The key is
+   only ever in the `x-goog-api-key` header.
 4. **Infra.** The `ai` Lambda runs outside the VPC (`no_vpc_functions` in
    `infra/locals.tf`) and gets no database settings; `ai_enabled` (default
-   false), `ai_model_id` and a sensitive `anthropic_api_key` are its only new
-   settings. No IAM, VPC, Aurora or CloudFront changes.
+   false), `ai_provider` (`gemini`), `ai_model_id` and a sensitive
+   `gemini_api_key` (no default; `bin/deploy-backend.sh` reads it from
+   `~/.gemini-key`) are its only new settings. No IAM, VPC, Aurora or CloudFront changes.
 5. **UI.** *AI briefing* card under the forecast on the project Overview:
    generate on request, status chip and headline, points and next steps with
    source chips (the tooltip shows the exact fact), *Copy*, and messages for
@@ -34,9 +37,17 @@ features; the rubric lists "Intelligent features with AI integration".
   A Lambda outside the VPC has internet access but no database, so the
   projects service (inside) signs the facts and the `ai` Lambda (outside)
   only talks to the model.
-- **Anthropic API, Haiku 5.5.** You offered a Gemini or an Anthropic key; the
-  model call is in one module (`backend/ai/function.py`), so changing provider
-  touches only that file.
+- **Provider: Gemini.** First built on the Anthropic API (Claude Haiku 5.5),
+  then switched to Gemini at your request; only `backend/ai/function.py`,
+  its tests and the settings changed. Default model `gemini-3.5-flash`,
+  a stable Flash model in the API's model list for this key. The newest,
+  `gemini-3.8-flash`, answered 503 "high demand" (and once timed out) on
+  every try on 2026-11-25, while 3.5 answered a full briefing in 2-5 s;
+  `TF_VAR_ai_model_id=gemini-3.8-flash` switches back. Thinking level LOW
+  keeps it fast.
+- **Free tier.** Google may use free-tier inputs and outputs to improve its
+  products; the facts carry no names or emails, and a paid-tier key avoids
+  this.
 - **The model doesn't choose the status chip**, and a point without a known
   source is dropped rather than shown.
 - **Viewers can't generate briefings**, to keep spend down; they still see
@@ -50,10 +61,12 @@ features; the rubric lists "Intelligent features with AI integration".
 ## Tests
 - `test_briefing.py` (21): facts for each project shape, no personal data,
   clipping, signing and verification, the reply check.
-- `test_briefing_api.py` (20): the facts endpoint (shape, roles, 404, 405,
-  the hourly limit, usage row) and the ai service with a fake model (grounding,
-  model setting, 400/401/403/405, AI off, refusal, `max_tokens`, unusable
-  replies, SDK errors, client timeouts).
+- `test_briefing_api.py` (26): the facts endpoint (shape, roles, 404, 405,
+  the hourly limit, usage row) and the ai service with a fake Gemini in place
+  of `urlopen` (grounding, the request body carrying the facts and the key
+  only in the header and never logged, model setting, 400/401/403/405, AI
+  off, safety blocks, empty candidates, invalid JSON, HTTP 429 and other
+  errors, timeouts).
 - `BriefingCard.test.jsx` and `briefingApi.test.js`: states, sources, copy,
   every error message, viewers, the permission mirror.
 - Cypress `14-briefing`: real signed facts from the local stack, the model

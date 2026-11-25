@@ -5,7 +5,7 @@ import { apiRequest } from './api';
  * 1. the projects service (next to the database) returns the project's facts,
  *    signed for this user for two minutes;
  * 2. the ai service (outside the VPC, where it can reach the model API) checks
- *    the signature, asks Claude and keeps only the points that cite those facts.
+ *    the signature, asks Gemini and keeps only the points that cite those facts.
  * @param {number|string} projectId
  * @returns {Promise<{status: string, headline: string, points: Array<{text: string, sources: string[]}>,
  *   actions: Array<{text: string, sources: string[]}>, facts: Array<{id: string, label: string, text: string}>,
